@@ -679,7 +679,7 @@ void readImage(string p, string name, bool loadAsTex = true){
 	const char* path = p.c_str();
 	void *image;
 	if(p.find(".hdr") != string::npos || p.find(".exr") != string::npos){
-		stbi_set_flip_vertically_on_load(false);
+		stbi_set_flip_vertically_on_load(true);
 		image = stbi_loadf(path, &w, &h, &c, 0);
 	}
 	else{

@@ -20,9 +20,6 @@ void main(void)
 	vec4 pos4 = inverseViewingMatrix * pos;
 	vec3 dir = normalize(pos4.xyz/pos4.w);
 
-	// since after inverseViewingMatrix, the coordinate is left-handed
-	dir.z = -dir.z;
-	dir.y = -dir.y;
 	vec3 color = texture(skybox, SampleSphericalMap(dir)).xyz;
 	fragColor = vec4(color, 1.0);
 
