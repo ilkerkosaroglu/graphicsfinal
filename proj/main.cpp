@@ -199,9 +199,9 @@ class Ground: public RenderObject{
 		this->geometry.modelMatrix = scale * matRx;
 	}
 	void updateUniforms(){
-		RenderObject::updateUniforms();
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, ::textures["ground"].textureId);
+		// RenderObject::updateUniforms();
+		// glActiveTexture(GL_TEXTURE0);
+		// glBindTexture(GL_TEXTURE_2D, ::textures["ground"].textureId);
 	}
 };
 
@@ -505,6 +505,7 @@ void initShaders(){
 	initShader("tesla", "bodyv.glsl", "bodyf.glsl", {"matcap", "skybox"});
 	initShader("wheels", "wv.glsl", "wf.glsl", {});
 	initShader("windows", "windowv.glsl", "windowf.glsl", {"skybox"});
+	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox"});
 }
 
 void Geometry::initVBO()
@@ -640,12 +641,12 @@ void loadHDRTexture(Image& img){
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);	
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, img.width, img.height, 0, GL_RGB, GL_FLOAT, img.data);
-	glGenerateMipmap(GL_TEXTURE_2D);
+
 	glBindTexture(GL_TEXTURE_2D, 0);
 	cerr << "loaded HDR texture " << img.name << " with id " << t.textureId << endl;
 }
@@ -676,15 +677,15 @@ void loadCubemap(vector<string> names){
 void readImage(string p, string name, bool loadAsTex = true){
 	int w,h,c;
 	const char* path = p.c_str();
-	stbi_set_flip_vertically_on_load(true);
 	void *image;
 	if(p.find(".hdr") != string::npos || p.find(".exr") != string::npos){
-
+		stbi_set_flip_vertically_on_load(false);
 		image = stbi_loadf(path, &w, &h, &c, 0);
 	}
-		else{
+	else{
+		stbi_set_flip_vertically_on_load(true);
 		image = stbi_load(path, &w, &h, &c, 0);
-		}
+	}
 	// unsigned char *image = stbi_load(path, &w, &h, &c, STBI_rgb);
 	if (!image){
 		std::cout << "Failed to load image" << std::endl;
@@ -774,6 +775,31 @@ void SkyBox::draw(){
 	glDepthRange(0, 1);
 }
 
+class HDRSkyBox: public SkyBox{
+	public:
+	void draw();
+};
+void HDRSkyBox::draw(){
+	auto program = &programs["hdrsky"];
+	glDepthFunc(GL_LEQUAL);
+	glDepthRange(1, 1);
+	glUseProgram(program->program);
+	glUniformMatrix4fv(program->uniforms["projectionMatrix"], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(program->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
+	glUniform1i(program->uniforms["skybox"], 0);
+
+	glBindVertexArray(this->vao);
+	glBindBuffer(GL_ARRAY_BUFFER, this->vertexAttribBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, ::textures["hdrsky"].textureId);
+
+	glDrawElements(GL_TRIANGLES, this->faces.size() * 3, GL_UNSIGNED_INT, 0);
+	glDepthFunc(GL_LESS);
+	glDepthRange(0, 1);
+}
+
 void SkyBox::init(){
 	this->vertices.push_back(Vertex(-1, -1, 0));
 	this->vertices.push_back(Vertex(-1, 1, 0));
@@ -796,7 +822,7 @@ void SkyBox::init(){
 	// readSkybox("hw2_support_files/skybox_texture_abandoned_village/", "png");
 	// readSkybox("hw2_support_files/skybox_texture_test/", "jpg");
 }
-SkyBox skybox;
+HDRSkyBox skybox;
 
 /*** ----------------- INIT ------------------ */
 void init()

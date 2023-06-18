@@ -4,7 +4,16 @@ in mat4 inverseViewingMatrix;
 in vec4 pos;
 out vec4 fragColor;
 
-uniform samplerCube skybox;
+uniform sampler2D skybox;
+
+const vec2 invAtan = vec2(0.1591, 0.3183);
+vec2 SampleSphericalMap(vec3 v)
+{
+    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+    uv *= invAtan;
+    uv += 0.5;
+    return uv;
+}
 
 void main(void)
 {
@@ -14,7 +23,7 @@ void main(void)
 	// since after inverseViewingMatrix, the coordinate is left-handed
 	dir.z = -dir.z;
 	dir.y = -dir.y;
-
-	fragColor = vec4(texture(skybox, dir).xyz, 1.0);
+	vec3 color = texture(skybox, SampleSphericalMap(dir)).xyz;
+	fragColor = vec4(color, 1.0);
 
 }
