@@ -1035,7 +1035,8 @@ void setViewingMatrix()
 	eyeRotX = eyeRotX > 360 ? eyeRotX - 360 : eyeRotX;
 	eyeRotX = eyeRotX < 0 ? eyeRotX + 360 : eyeRotX;
 	// clamp
-	eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 85.f - eyeRotYInitial);
+	eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 0.f + eyeRotYInitial);
+	// eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 85.f - eyeRotYInitial);
 	// float newEyeRotY = eyeRotY = glm::clamp(eyeRotY, -85.f, 85.f);
 	// view matrix
 	glm::mat4 matRx = glm::rotate<float>(glm::mat4(1.0), (eyeRotY / 180.) * M_PI, glm::vec3(1.0, 0.0, 0.0));
