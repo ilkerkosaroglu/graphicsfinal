@@ -91,8 +91,8 @@ class Image{
 	public:
 	string name;
 	int width, height, channels;
-	unsigned char *data;
-	Image(int width, int height, int channels, unsigned char *data, string name): width(width), height(height), channels(channels), data(data), name(name){}
+	void *data;
+	Image(int width, int height, int channels, void *data, string name) : width(width), height(height), channels(channels), data(data), name(name) {}
 	Image(){}
 };
 
@@ -628,6 +628,28 @@ void loadTexture(Image& img){
 	cerr << "loaded texture " << img.name << " with id " << t.textureId << endl;
 }
 
+void loadHDRTexture(Image& img){
+	cerr <<"starting to load hdr " << (!!img.data) <<" channels:"<<img.channels<< endl;
+	float *data = (float*)img.data;
+	cerr<<"data samples:"<<data[0]<<","<<data[1]<<","<<data[2]<<","<<data[3]<< endl;
+	textures[img.name] = ImgTexture();
+	ImgTexture &t = textures[img.name];
+
+	glGenTextures(1, &t.textureId);
+	glBindTexture(GL_TEXTURE_2D, t.textureId);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, img.width, img.height, 0, GL_RGB, GL_FLOAT, img.data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	cerr << "loaded HDR texture " << img.name << " with id " << t.textureId << endl;
+}
+
 void loadCubemap(vector<string> names){
 	textures["cubemap"] = ImgTexture();
 	ImgTexture &t = textures["cubemap"];
@@ -651,18 +673,32 @@ void loadCubemap(vector<string> names){
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
-void readImage(const char* path, string name, bool loadAsTex = true){
+void readImage(string p, string name, bool loadAsTex = true){
 	int w,h,c;
+	const char* path = p.c_str();
 	stbi_set_flip_vertically_on_load(true);
-	unsigned char *image = stbi_load(path, &w, &h, &c, 0);
+	void *image;
+	if(p.find(".hdr") != string::npos || p.find(".exr") != string::npos){
+
+		image = stbi_loadf(path, &w, &h, &c, 0);
+	}
+		else{
+		image = stbi_load(path, &w, &h, &c, 0);
+		}
 	// unsigned char *image = stbi_load(path, &w, &h, &c, STBI_rgb);
 	if (!image){
 		std::cout << "Failed to load image" << std::endl;
 	}else{
-		// cout<<"loaded image "<<name<<" with "<<w<<" "<<h<<" "<<c<<endl;
+		cout<<"loaded image "<<name<<" with "<<w<<" "<<h<<" "<<c<<endl;
 		images[name] = Image(w, h, c, image, name);
-		if(loadAsTex)
-		loadTexture(images[name]);
+		if(loadAsTex){
+			if(p.find(".hdr") != string::npos || p.find(".exr") != string::npos){
+				loadHDRTexture(images[name]);
+			}
+			else{
+				loadTexture(images[name]);
+			}
+		}
 	}
 }
 GLuint fbo;
@@ -708,6 +744,10 @@ void readSkybox(string path, string ext = "jpg"){
 	// loadCubemap({"right", "left", "top", "bottom", "back", "front"});
 	loadCubemap({"right", "left", "bottom", "top", "front", "back"});
 }
+void readHDRPanorama(string path){
+	readImage(path.c_str(), "hdrsky");
+}
+
 class SkyBox: public Geometry{
 	public:
 	void draw();
@@ -751,6 +791,7 @@ void SkyBox::init(){
 	this->initVBO();
 
 	readSkybox("hw2_support_files/custom/village/", "png");
+	readHDRPanorama("hw2_support_files/hdr/resting_place_4k.hdr");
 	// readSkybox("hw2_support_files/custom/village/", "png");
 	// readSkybox("hw2_support_files/skybox_texture_abandoned_village/", "png");
 	// readSkybox("hw2_support_files/skybox_texture_test/", "jpg");
