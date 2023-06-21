@@ -56,6 +56,12 @@ int activeProgramIndex = 0;
 float skyd = 1.0;
 float skym = 100.0;
 
+GLuint defaultFBO = 0;
+GLuint fbo;
+GLuint hdrFBO;
+GLuint colorBuffer;
+
+GLuint tonemapProgram;
 
 struct Vertex
 {
@@ -502,7 +508,24 @@ Program& initShader(string name, string vert, string frag, vector<string> unifor
 	return programs[name];
 }
 
+void initTonemapProgram(){
+	tonemapProgram = glCreateProgram();
+	GLuint fs = createFS("tonemap.glsl");
+	GLuint vs = createVS("rectv.glsl");
+	glAttachShader(tonemapProgram, fs);
+	glAttachShader(tonemapProgram, vs);
+	glLinkProgram(tonemapProgram);
+	GLint status;
+	glGetProgramiv(tonemapProgram, GL_LINK_STATUS, &status);
+	if (status != GL_TRUE)
+	{
+		cout << "Program link failed, TONEMAP" << endl;
+		exit(-1);
+	}
+}
+
 void initShaders(){
+	initTonemapProgram();
 	initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
 	initShader("ground", "groundv.glsl", "groundf.glsl", {"groundTexture"});
@@ -706,7 +729,7 @@ void readImage(string p, string name, bool loadAsTex = true){
 		}
 	}
 }
-GLuint fbo;
+
 
 void initEnvMapTexture(){
 	textures["envmap"] = ImgTexture();
@@ -719,7 +742,7 @@ void initEnvMapTexture(){
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	for (int i = 0; i < 6; ++i){
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, ENV_RES, ENV_RES, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB16F, ENV_RES, ENV_RES, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 	}
 
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -753,6 +776,40 @@ void readHDRPanorama(string path){
 	readImage(path.c_str(), "hdrsky");
 }
 
+class Rect: public Geometry{
+	public:
+	void draw();
+	void init();
+};
+
+void Rect::draw(){
+
+	glBindVertexArray(this->vao);
+	glBindBuffer(GL_ARRAY_BUFFER, this->vertexAttribBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
+
+	glDrawElements(GL_TRIANGLES, this->faces.size() * 3, GL_UNSIGNED_INT, 0);
+}
+
+void Rect::init(){
+	this->vertices.push_back(Vertex(-1, -1, 0));
+	this->vertices.push_back(Vertex(-1, 1, 0));
+	this->vertices.push_back(Vertex(1, 1, 0));
+	this->vertices.push_back(Vertex(1, -1, 0));
+	this->normals.push_back(Normal(0, 0, 1));
+	int vIndex[3] = {0, 1, 2};
+	int nIndex[3] = {0, 0, 0};
+	int tIndex[3] = {0, 0, 0};
+	this->faces.push_back(Face(vIndex, tIndex, nIndex));
+	vIndex[0] = 0;
+	vIndex[1] = 2;
+	vIndex[2] = 3;
+	this->faces.push_back(Face(vIndex, tIndex, nIndex));
+	this->initVBO();
+}
+
+Rect rect;
+
 class SkyBox: public Geometry{
 	public:
 	void draw();
@@ -767,14 +824,16 @@ void SkyBox::draw(){
 	glUniformMatrix4fv(program->uniforms["projectionMatrix"], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(program->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
 
-	glBindVertexArray(this->vao);
-	glBindBuffer(GL_ARRAY_BUFFER, this->vertexAttribBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["cubemap"].textureId);
 
+	glBindVertexArray(this->vao);
+	glBindBuffer(GL_ARRAY_BUFFER, this->vertexAttribBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
+
 	glDrawElements(GL_TRIANGLES, this->faces.size() * 3, GL_UNSIGNED_INT, 0);
+
 	glDepthFunc(GL_LESS);
 	glDepthRange(0, 1);
 }
@@ -794,34 +853,15 @@ void HDRSkyBox::draw(){
 	glUniform1f(program->uniforms["skyd"], skyd);
 	glUniform1f(program->uniforms["skym"], skym);
 
-	glBindVertexArray(this->vao);
-	glBindBuffer(GL_ARRAY_BUFFER, this->vertexAttribBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
-
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, ::textures["hdrsky"].textureId);
 
-	glDrawElements(GL_TRIANGLES, this->faces.size() * 3, GL_UNSIGNED_INT, 0);
+	rect.draw();
 	glDepthFunc(GL_LESS);
 	glDepthRange(0, 1);
 }
 
 void SkyBox::init(){
-	this->vertices.push_back(Vertex(-1, -1, 0));
-	this->vertices.push_back(Vertex(-1, 1, 0));
-	this->vertices.push_back(Vertex(1, 1, 0));
-	this->vertices.push_back(Vertex(1, -1, 0));
-	this->normals.push_back(Normal(0, 0, 1));
-	int vIndex[3] = {0, 1, 2};
-	int nIndex[3] = {0, 0, 0};
-	int tIndex[3] = {0, 0, 0};
-	this->faces.push_back(Face(vIndex, tIndex, nIndex));
-	vIndex[0] = 0;
-	vIndex[1] = 2;
-	vIndex[2] = 3;
-	this->faces.push_back(Face(vIndex, tIndex, nIndex));
-	this->initVBO();
-
 	readSkybox("hw2_support_files/custom/village/", "png");
 	readHDRPanorama("hw2_support_files/hdr/resting_place_4k.hdr");
 	// readSkybox("hw2_support_files/custom/village/", "png");
@@ -855,6 +895,7 @@ void init()
 	}
 
 	skybox.init();
+	rect.init();
 }
 /*** ----------------------------------------- */
 
@@ -904,9 +945,9 @@ void drawEnvMap(){
 	ImgTexture &t = textures["envmap"];
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
 
-	glViewport(0, 0, ENV_RES, ENV_RES);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glViewport(0, 0, ENV_RES, ENV_RES);
 
 	auto prevVM = viewingMatrix;
 	auto prevPM = projectionMatrix;
@@ -928,7 +969,7 @@ void drawEnvMap(){
 			}
 		}
 	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 	glViewport(0, 0, gWidth, gHeight);
 	viewingMatrix = prevVM;
 	projectionMatrix = prevPM;
@@ -950,6 +991,14 @@ void display(){
 		o->drawModel();
 	}
 
+}
+
+void postProcessing(){
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glUseProgram(tonemapProgram);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	rect.draw();
 }
 
 map<int, bool> pressed;
@@ -1042,13 +1091,15 @@ void mainLoop(GLFWwindow* window)
 		if (currentTime - previousTime >= 1.0)
 		{
 			dbg(frameCount);
-			dbg(skyd);
-			dbg(skym);
 			frameCount = 0;
 			previousTime = currentTime;
 		}
 		calcInteractions();
+		glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 		display();
+		//apply post processing
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		postProcessing();		
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
@@ -1091,6 +1142,13 @@ void reshape(GLFWwindow *window, int w, int h)
 
 	glViewport(0, 0, w, h);
 
+	// resize post processing fbo attachments
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, NULL);
+
+	ImgTexture &d = textures["depthhdr"];
+	glBindTexture(GL_TEXTURE_2D, d.textureId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 	// glMatrixMode(GL_PROJECTION);
 	// glLoadIdentity();
 	// glOrtho(-10, 10, -10, 10, -10, 10);
@@ -1186,10 +1244,6 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-	// no need to alias reflections
-	glfwWindowHint(GLFW_SAMPLES, 4);
-	glEnable(GL_MULTISAMPLE);
-	glfwWindowHint(GLFW_DEPTH_BITS, 24);
 
 	//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
 	//glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -1220,6 +1274,33 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	glfwSetWindowTitle(window, rendererInfo);
 
 	glDebugMessageCallback(debugCallback, NULL);
+
+	// hdr fbo
+	glGenFramebuffers(1, &hdrFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+	defaultFBO = hdrFBO;
+
+	glGenTextures(1, &colorBuffer);
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
+
+	// attach a depth buffer texture to fix weird artifacts
+	textures["depthhdr"] = ImgTexture();
+	ImgTexture &d = textures["depthhdr"];
+	glGenTextures(1, &d.textureId);
+	glBindTexture(GL_TEXTURE_2D, d.textureId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, d.textureId, 0);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	init();
 

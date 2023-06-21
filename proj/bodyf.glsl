@@ -18,7 +18,8 @@ void main(void)
 
 	float m = 2.8284271247461903 * sqrt( reflectDir.z+1.01 );
 	vec2 mcuv = reflectDir.xy / m + 0.5;
-	vec4 mccolor = vec4(texture(matcap, mcuv).xyz,1);
+	// vec4 mccolor = vec4(texture(matcap, mcuv).xyz,1);
+	vec4 mccolor = vec4(0.2,0.2,0.2,1);
 
 	// fragColor = vec4(reflectDir, 1);
 	// fragColor = vec4(texture(skybox, reflectDir).xyz, 1);
@@ -37,5 +38,5 @@ void main(void)
 	// fragColor = vec4(0,0,0,1);
 	// fragColor = mccolor;
 	// fragColor = mix(mccolor, blurColor, 0.3);
-	fragColor = mix(mccolor, texture(skybox, reflectDir), 0.2);
+	fragColor = mix(mccolor, texture(skybox, reflectDir), 0.3);
 }

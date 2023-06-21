@@ -14,7 +14,7 @@ void main(void)
 	vec3 N = normalize(fragWorldNor);
 
 
-	vec4 mccolor = vec4(0,1,1,1);
+	vec4 mccolor = vec4(0,0.2,0.2,1);
 
 	vec3 reflectDir = reflect(-V, N);
 	reflectDir.y *= -1;
