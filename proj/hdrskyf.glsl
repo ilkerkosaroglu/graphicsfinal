@@ -5,6 +5,8 @@ in vec4 pos;
 out vec4 fragColor;
 
 uniform sampler2D skybox;
+uniform float skyd;
+uniform float skym;
 
 const vec2 invAtan = vec2(0.1591, 0.3183);
 vec2 SampleSphericalMap(vec3 v)
@@ -15,8 +17,8 @@ vec2 SampleSphericalMap(vec3 v)
     return uv;
 }
 
-const float m = 100.0;
-const float d = 1.0;
+// const float m = 100.0;
+// const float d = 1.0;
 
 void main(void)
 {
@@ -24,18 +26,21 @@ void main(void)
 	vec3 dir = normalize(pos4.xyz/pos4.w);
 	vec3 lambda = vec3(1.0, 1.0, 1.0);
 
-	if(dir.y < 0){
-		vec3 hit = (d / dir.y) * dir;
-		vec2 u = hit.xz;
-		if(length(u) < m){
-			float deep = sqrt(m*m - dot(u, u));
-			hit.y = -deep;
-			lambda = normalize(hit);
-			vec3 color = texture(skybox, SampleSphericalMap(lambda)).xyz;
-			fragColor = vec4(color, 1.0);
-			return;
-		}
-	}
+	float m = skym;
+	float d = skyd;
+
+	// if(dir.y < 0){
+	// 	vec3 hit = (d / dir.y) * dir;
+	// 	vec2 u = hit.xz;
+	// 	if(length(u) < m){
+	// 		float deep = sqrt(m*m - dot(u, u));
+	// 		hit.y = -deep-d;
+	// 		lambda = normalize(hit);
+	// 		vec3 color = texture(skybox, SampleSphericalMap(lambda)).xyz;
+	// 		fragColor = vec4(color, 1.0);
+	// 		return;
+	// 	}
+	// }
 
 	vec3 color = texture(skybox, SampleSphericalMap(dir)).xyz;
 	fragColor = vec4(color, 1.0);

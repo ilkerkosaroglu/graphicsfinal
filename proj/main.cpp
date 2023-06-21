@@ -53,6 +53,10 @@ glm::vec3 armCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
 
 int activeProgramIndex = 0;
 
+float skyd = 1.0;
+float skym = 100.0;
+
+
 struct Vertex
 {
 	Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) { }
@@ -505,7 +509,7 @@ void initShaders(){
 	initShader("tesla", "bodyv.glsl", "bodyf.glsl", {"matcap", "skybox"});
 	initShader("wheels", "wv.glsl", "wf.glsl", {});
 	initShader("windows", "windowv.glsl", "windowf.glsl", {"skybox"});
-	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox"});
+	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox", "skyd", "skym"});
 }
 
 void Geometry::initVBO()
@@ -787,6 +791,8 @@ void HDRSkyBox::draw(){
 	glUniformMatrix4fv(program->uniforms["projectionMatrix"], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(program->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
 	glUniform1i(program->uniforms["skybox"], 0);
+	glUniform1f(program->uniforms["skyd"], skyd);
+	glUniform1f(program->uniforms["skym"], skym);
 
 	glBindVertexArray(this->vao);
 	glBindBuffer(GL_ARRAY_BUFFER, this->vertexAttribBuffer);
@@ -1002,6 +1008,22 @@ void calcInteractions(){
 	{
 		getRenderObject("TeslaBody")->props["angle"] += 2.0;
 	}
+	if (shouldDoAction(GLFW_KEY_U))
+	{
+		skyd += 0.2;
+	}
+	if (shouldDoAction(GLFW_KEY_J))
+	{
+		skyd -= 0.2;
+	}
+	if (shouldDoAction(GLFW_KEY_Y))
+	{
+		skym += 1.0;
+	}
+	if (shouldDoAction(GLFW_KEY_H))
+	{
+		skym -= 1.0;
+	}
 	float angle = getRenderObject("TeslaBody")->props["angle"];
 	eyeRotX += 180 - angle;
 	setViewingMatrix();
@@ -1020,6 +1042,8 @@ void mainLoop(GLFWwindow* window)
 		if (currentTime - previousTime >= 1.0)
 		{
 			dbg(frameCount);
+			dbg(skyd);
+			dbg(skym);
 			frameCount = 0;
 			previousTime = currentTime;
 		}
