@@ -307,8 +307,8 @@ class Teapot: public RenderObject{
 		program = &programs["teapot"];
 		props["metalness"] = x/(float)numx;
 		props["roughness"] = z/(float)numz;
-		position.x = x*10.0;
-		position.z = z*10.0;
+		position.x = x*7.0;
+		position.z = z*7.0;
 	}
 	void calculateModelMatrix(){
 		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position);
@@ -377,17 +377,40 @@ shared_ptr<RenderObject> ParseObj(const string &fileName, const string &name, sh
 				{
 					str >> tmp; // consume "f"
 					char c;
+					// split str into 9 parts as / as sep
+					vector<int> integers(9);
 					int vIndex[3], nIndex[3], tIndex[3];
-					str >> vIndex[0]; str >> c >> c; // consume "//"
-					str >> nIndex[0];
-					str >> vIndex[1]; str >> c >> c; // consume "//"
-					str >> nIndex[1];
-					str >> vIndex[2]; str >> c >> c; // consume "//"
-					str >> nIndex[2];
+					string s = curLine.substr(2);
+					string del = " /";
+					for(int i = 0; i < 3; i++){
+						for(int j = 0; j < 3; j++){
+							string token = s.substr(0, s.find_first_of(del));
+							s.erase(0, s.find_first_of(del) + 1);
+							// dbg(token);
+							if(token == ""){
+								// dbg("empty token");
+								continue;
+							}
+							try{
+								integers[i*3+j] = stoi(token);
+							}catch(...){
+								dbg(curLine);
+							}
+						}
+						vIndex[i] = integers[i * 3];
+						tIndex[i] = integers[i * 3 + 1];
+						nIndex[i] = integers[i * 3 + 2];
+					}
+					// str >> vIndex[0]; str >> c >> c; // consume "//"
+					// str >> nIndex[0];
+					// str >> vIndex[1]; str >> c >> c; // consume "//"
+					// str >> nIndex[1];
+					// str >> vIndex[2]; str >> c >> c; // consume "//"
+					// str >> nIndex[2];
 
-					assert(vIndex[0] == nIndex[0] &&
-						vIndex[1] == nIndex[1] &&
-						vIndex[2] == nIndex[2]); // a limitation for now
+					// assert(vIndex[0] == nIndex[0] &&
+					// 	vIndex[1] == nIndex[1] &&
+					// 	vIndex[2] == nIndex[2]); // a limitation for now
 
 					// make indices start from 0
 					for (int c = 0; c < 3; ++c)
@@ -586,13 +609,14 @@ void Geometry::initVBO()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
 
 	const int vSize = this->vertices.size();
-	// dbg(vSize);
+	dbg(vSize);
 	const int nSize = this->normals.size();
-	// dbg(nSize);
+	dbg(nSize);
 	const int tSize = this->textures.size();
 	// dbg(tSize);
 	const int fSize = this->faces.size();
 	// dbg(fSize);
+	assert(vSize == nSize);
 
 	this->vertexDataSizeInBytes = vSize * 3 * sizeof(GLfloat);
 	this->normalDataSizeInBytes = nSize * 3 * sizeof(GLfloat);
@@ -630,6 +654,15 @@ void Geometry::initVBO()
 
 	for (int i = 0; i < nSize; ++i)
 	{
+		// normalData[3 * i] = this->normals[this->faces[i].nIndex[0]].x;
+		// normalData[3 * i+1] = this->normals[this->faces[i].nIndex[0]].y;
+		// normalData[3 * i+2] = this->normals[this->faces[i].nIndex[0]].z;
+		// normalData[3 * i + 1] = this->faces[i].nIndex[1];
+		// normalData[3 * i + 2] = this->faces[i].nIndex[2];
+		// Normal n = this->normals[this->faces[i].nIndex[0]];
+		// normalData[3 * i] = n.x;
+		// normalData[3 * i + 1] = n.y;
+		// normalData[3 * i + 2] = n.z;
 		normalData[3 * i] = this->normals[i].x;
 		normalData[3 * i + 1] = this->normals[i].y;
 		normalData[3 * i + 2] = this->normals[i].z;
@@ -645,6 +678,20 @@ void Geometry::initVBO()
 		indexData[3 * i] = this->faces[i].vIndex[0];
 		indexData[3 * i + 1] = this->faces[i].vIndex[1];
 		indexData[3 * i + 2] = this->faces[i].vIndex[2];
+
+		for (int j=0;j<3;j++){
+
+			int indexv = this->faces[i].vIndex[j];
+			int indexn = this->faces[i].nIndex[j];
+			if(indexn!=indexv){
+				dbg(indexv);
+				dbg(indexn);
+				Normal n = this->normals[indexn];
+				normalData[3*indexv] = n.x;
+				normalData[3*indexv + 1] = n.y;
+				normalData[3*indexv + 2] = n.z;
+			}
+		}
 	}
 
 
@@ -827,6 +874,9 @@ void Rect::init(){
 	this->vertices.push_back(Vertex(1, 1, 0));
 	this->vertices.push_back(Vertex(1, -1, 0));
 	this->normals.push_back(Normal(0, 0, 1));
+	this->normals.push_back(Normal(0, 0, 1));
+	this->normals.push_back(Normal(0, 0, 1));
+	this->normals.push_back(Normal(0, 0, 1));
 	int vIndex[3] = {0, 1, 2};
 	int nIndex[3] = {0, 0, 0};
 	int tIndex[3] = {0, 0, 0};
@@ -911,9 +961,9 @@ void init()
 
 	initEnvMapTexture();
 
-	for(int i=0; i<3; i++){
-		for(int j=0; j<3; j++){
-			ParseObj("hw2_support_files/obj/teapot.obj", "teapot", make_unique<Teapot>(i,j,3,3));
+	for(int i=0; i<4; i++){
+		for(int j=0; j<4; j++){
+			ParseObj("hw2_support_files/obj/sphere.obj", "teapot", make_unique<Teapot>(i,j,4,4));
 		}
 	}
 
@@ -927,7 +977,9 @@ void init()
 
 	glEnable(GL_DEPTH_TEST);
 	for(auto & o: rObjects){
+		dbg(o->name);
 		o->geometry.initVBO();
+		dbg("--");
 	}
 
 	skybox.init();
@@ -1335,8 +1387,6 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, d.textureId, 0);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	init();
 

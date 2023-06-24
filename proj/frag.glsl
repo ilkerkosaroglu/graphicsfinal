@@ -6,7 +6,7 @@
 // However, we will not change them and therefore we define them 
 // here for simplicity.
 
-vec3 I = vec3(1, 1, 1);          // point light intensity
+vec3 I = vec3(100, 100, 100);          // point light intensity
 vec3 Iamb = vec3(0.8, 0.8, 0.8); // ambient light intensity
 vec3 kd = vec3(1, 0.2, 0.2);     // diffuse reflectance coefficient
 vec3 ka = vec3(0.3, 0.3, 0.3);   // ambient reflectance coefficient
