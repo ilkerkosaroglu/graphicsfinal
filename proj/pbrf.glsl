@@ -5,6 +5,9 @@ uniform vec3 eyePos;
 
 uniform float metalness;
 uniform float roughness;
+// vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
+vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
+// vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
 
 in vec4 fragWorldPos;
 in vec3 fragWorldNor;
@@ -19,18 +22,20 @@ vec3 kD = vec3(1, 0.2, 0.2);     // diffuse reflectance coefficient
 vec3 ka = vec3(0.3, 0.3, 0.3);   // ambient reflectance coefficient
 vec3 kS = vec3(0.8, 0.8, 0.8);   // specular reflectance coefficient
 
-vec3 lightPos = vec3(5, 5, 5);   // light position in world coordinates
+// vec3 lightPos = vec3(5, 5, 5);   // light position in world coordinates
+
+vec3 lightPos[4] = vec3[4](vec3(5, 5, 1), vec3(4, 5, 1), vec3(5, 4, 1), vec3(4, 4, 1));
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-float DistributionGGX(vec3 N, vec3 H, float roughness)
+float DistributionGGX(float NdotH, float roughness)
 {
     float a      = roughness*roughness;
     float a2     = a*a;
-    float NdotH  = max(dot(N, H), 0.0);
+
     float NdotH2 = NdotH*NdotH;
 	
     float num   = a2;
@@ -57,37 +62,34 @@ float GeometrySmith(float NdotL, float NdotV, float roughness)
     return ggx1 * ggx2;
 }
 
-vec3 F0 = vec3(0.04); 
-
-void main(void)
-{
-	// I *= 10;
-	vec3 final = vec3(0, 0, 0);
+vec3 calcLight(vec3 lightPos){
 	vec3 lw = lightPos - vec3(fragWorldPos);
-	vec3 L = normalize(lw);
 	float dist = length(lw);
-	// float att = 1.0 / (1.0 + 0.1 * dist + 0.01 * dist * dist);
-	float att = 1.0 / (dist*dist);
-	att = 1.0;
-	vec3 radiance     = I * att;
+	vec3 L = lw/dist;
+
 	vec3 V = normalize(eyePos - vec3(fragWorldPos));
 	vec3 H = normalize(L + V);
 	vec3 N = normalize(fragWorldNor);
 
 	float NdotL = max(dot(N, L), 0.0);  // for diffuse component
-	float NdotH = max(dot(H, V), 0.0); // for specular component
+	float HdotV = max(dot(H, V), 0.0); // for specular component
+	float NdotH = max(dot(H, N), 0.0); // for specular component
 	float NdotV = max(dot(N, V), 0.0);
 
-	vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
+	float att = 1.0 / (dist*dist);
+	// att = 1.0;
 
+	vec3 radiance     = I * att;
+
+	vec3 F0 = vec3(0.04);
 	F0      = mix(F0, albedo, metalness);
-	vec3 F  = fresnelSchlick(NdotH, F0);
+	vec3 F  = fresnelSchlick(HdotV, F0);
 
 	kS = F;
 	kD = 1.0 - kS;
 	kD *= 1.0 - metalness;
 
-	float NDF = DistributionGGX(N, H, roughness);       
+	float NDF = DistributionGGX(NdotH, roughness);       
 	float G   = GeometrySmith(NdotL, NdotV, roughness); 
 
 	vec3 numerator    = NDF * G * F;
@@ -95,9 +97,61 @@ void main(void)
 	vec3 specular     = numerator / denominator;
 
 	
-	final = (kD * albedo / PI + specular) * radiance * NdotL;
+	// return F;
+	// return vec3(0,0,0);
+	return (kD * albedo / PI + specular) * radiance * NdotL;
+}
 
-	vec3 ambient = vec3(0.03) * albedo * ka;
+void main(void)
+{
+	// I *= 10;
+	vec3 final = vec3(0, 0, 0);
+
+	// float att = 1.0 / (1.0 + 0.1 * dist + 0.01 * dist * dist);
+
+	
+	vec3 V = normalize(eyePos - vec3(fragWorldPos));
+	vec3 N = normalize(fragWorldNor);
+
+	for(int i = 0; i < 4; i++){
+		final += calcLight(lightPos[i]);
+	}
+
+	// vec3 lw = lightPos[0] - vec3(fragWorldPos);
+	// float dist = length(lw);
+	// vec3 L = lw/dist;
+
+	// vec3 V = normalize(eyePos - vec3(fragWorldPos));
+	// vec3 H = normalize(L + V);
+	// vec3 N = normalize(fragWorldNor);
+
+	// float NdotL = max(dot(N, L), 0.0);  // for diffuse component
+	// float HdotV = max(dot(H, V), 0.0); // for specular component
+	// float NdotH = max(dot(N, H), 0.0); // for specular component
+	// float NdotV = max(dot(N, V), 0.0);
+
+	// float att = 1.0 / (dist*dist);
+	// // att = 1.0;
+
+	// vec3 radiance     = I * att;
+
+	// F0      = mix(F0, albedo, metalness);
+	// vec3 F  = fresnelSchlick(NdotH, F0);
+
+	// kS = F;
+	// kD = 1.0 - kS;
+	// kD *= 1.0 - metalness;
+
+	// float NDF = DistributionGGX(NdotH, roughness);       
+	// float G   = GeometrySmith(NdotL, NdotV, roughness); 
+
+	// vec3 numerator    = NDF * G * F;
+	// float denominator = 4.0 * NdotV * NdotL  + 0.0001;
+	// vec3 specular     = numerator / denominator;
+
+	// final = (kD * albedo / PI + specular) * radiance * NdotL;
+
+	vec3 ambient = vec3(0.1) * albedo * ka;
 	final+= ambient;
 	
 	vec3 reflectDir = reflect(-V, N);
@@ -106,5 +160,7 @@ void main(void)
 
 	// fragColor = vec4(2,2,2, 1);
 	fragColor = vec4(final, 1);
+	// fragColor = vec4(NdotL, NdotH, NdotV, 1);
+	// fragColor = vec4(F, 1);
 	// fragColor = mix(vec4(final, 1), texture(skybox, skyboxReflectDir), 0.3);
 }

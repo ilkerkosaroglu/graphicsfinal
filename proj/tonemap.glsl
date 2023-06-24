@@ -9,8 +9,8 @@ void main()
     vec2 npos = pos * 0.5 + 0.5;
     vec3 hdrColor = texture(scene, npos).rgb;
     vec3 col = vec3(1.0) - exp(-hdrColor * exposure);
-    // npos = vec2(pow(npos.x, 0.01),pow(npos.y, 0.01));
-    col = pow(col, vec3(1.0/1.5));
+    // vec3 col = hdrColor / (hdrColor + vec3(1.0));
+    col = pow(col, vec3(1.0/2.2));
     FragColor = vec4(col, 1.0);
 
     // vec3 L = hdrColor / (hdrColor + vec3(1.0));

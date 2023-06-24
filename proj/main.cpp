@@ -305,10 +305,10 @@ class Teapot: public RenderObject{
 	}
 	Teapot(int x, int z, int numx, int numz){
 		program = &programs["teapot"];
-		props["metalness"] = x/(float)numx;
-		props["roughness"] = z/(float)numz;
-		position.x = x*7.0;
-		position.z = z*7.0;
+		props["metalness"] = max((float)0.01, min(x / (float)numx, (float)0.99));
+		props["roughness"] = max((float)0.01, min(z / (float)numz, (float)0.99));
+		position.x = x*3.0;
+		position.z = z*3.0;
 	}
 	void calculateModelMatrix(){
 		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position);
@@ -684,8 +684,6 @@ void Geometry::initVBO()
 			int indexv = this->faces[i].vIndex[j];
 			int indexn = this->faces[i].nIndex[j];
 			if(indexn!=indexv){
-				dbg(indexv);
-				dbg(indexn);
 				Normal n = this->normals[indexn];
 				normalData[3*indexv] = n.x;
 				normalData[3*indexv + 1] = n.y;
@@ -961,9 +959,9 @@ void init()
 
 	initEnvMapTexture();
 
-	for(int i=0; i<4; i++){
-		for(int j=0; j<4; j++){
-			ParseObj("hw2_support_files/obj/sphere.obj", "teapot", make_unique<Teapot>(i,j,4,4));
+	for(int i=0; i<5; i++){
+		for(int j=0; j<5; j++){
+			ParseObj("hw2_support_files/obj/sphere.obj", "teapot", make_unique<Teapot>(i,j,5,5));
 		}
 	}
 
@@ -1336,7 +1334,7 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
 	//glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-	int width = 640, height = 480;
+	int width = 1280, height = 960;
 	window = glfwCreateWindow(width, height, "Simple Example", NULL, NULL);
 
 	if (!window)
