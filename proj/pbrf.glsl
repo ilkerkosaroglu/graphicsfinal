@@ -1,7 +1,11 @@
 #version 460 core
 
-uniform samplerCube skybox;
 uniform vec3 eyePos;
+
+uniform samplerCube skybox;
+uniform sampler2D albedoMap;
+uniform sampler2D metalMap;
+uniform sampler2D roughMap;
 
 uniform float metalness;
 uniform float roughness;
@@ -11,6 +15,7 @@ vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 
 in vec4 fragWorldPos;
 in vec3 fragWorldNor;
+in vec2 uv;
 
 out vec4 fragColor;
 
@@ -62,6 +67,21 @@ float GeometrySmith(float NdotL, float NdotV, float roughness)
     return ggx1 * ggx2;
 }
 
+vec3 getAlbedo(){
+	return texture(albedoMap, uv).rgb;
+	// return albedo;
+}
+
+float getMetalness(){
+	return texture(metalMap, uv).r;
+	// return metalness;
+}
+
+float getRoughness(){
+	return texture(roughMap, uv).r;
+	// return roughness;
+}
+
 vec3 calcLight(vec3 lightPos){
 	vec3 lw = lightPos - vec3(fragWorldPos);
 	float dist = length(lw);
@@ -80,6 +100,10 @@ vec3 calcLight(vec3 lightPos){
 	// att = 1.0;
 
 	vec3 radiance     = I * att;
+
+	vec3 albedo = getAlbedo();
+	float metalness = getMetalness();
+	float roughness = getRoughness();
 
 	vec3 F0 = vec3(0.04);
 	F0      = mix(F0, albedo, metalness);
@@ -107,58 +131,21 @@ void main(void)
 	// I *= 10;
 	vec3 final = vec3(0, 0, 0);
 
-	// float att = 1.0 / (1.0 + 0.1 * dist + 0.01 * dist * dist);
-
-	
-	vec3 V = normalize(eyePos - vec3(fragWorldPos));
-	vec3 N = normalize(fragWorldNor);
-
 	for(int i = 0; i < 4; i++){
 		final += calcLight(lightPos[i]);
 	}
 
-	// vec3 lw = lightPos[0] - vec3(fragWorldPos);
-	// float dist = length(lw);
-	// vec3 L = lw/dist;
-
-	// vec3 V = normalize(eyePos - vec3(fragWorldPos));
-	// vec3 H = normalize(L + V);
-	// vec3 N = normalize(fragWorldNor);
-
-	// float NdotL = max(dot(N, L), 0.0);  // for diffuse component
-	// float HdotV = max(dot(H, V), 0.0); // for specular component
-	// float NdotH = max(dot(N, H), 0.0); // for specular component
-	// float NdotV = max(dot(N, V), 0.0);
-
-	// float att = 1.0 / (dist*dist);
-	// // att = 1.0;
-
-	// vec3 radiance     = I * att;
-
-	// F0      = mix(F0, albedo, metalness);
-	// vec3 F  = fresnelSchlick(NdotH, F0);
-
-	// kS = F;
-	// kD = 1.0 - kS;
-	// kD *= 1.0 - metalness;
-
-	// float NDF = DistributionGGX(NdotH, roughness);       
-	// float G   = GeometrySmith(NdotL, NdotV, roughness); 
-
-	// vec3 numerator    = NDF * G * F;
-	// float denominator = 4.0 * NdotV * NdotL  + 0.0001;
-	// vec3 specular     = numerator / denominator;
-
-	// final = (kD * albedo / PI + specular) * radiance * NdotL;
-
-	vec3 ambient = vec3(0.1) * albedo * ka;
+	vec3 ambient = vec3(0.03) * getAlbedo() * ka;
 	final+= ambient;
 	
+	vec3 V = normalize(eyePos - vec3(fragWorldPos));
+	vec3 N = normalize(fragWorldNor);
 	vec3 reflectDir = reflect(-V, N);
 
 	vec3 skyboxReflectDir = vec3(reflectDir.x, -reflectDir.y, -reflectDir.z);
 
-	// fragColor = vec4(2,2,2, 1);
+	// fragColor = vec4(uv, 1, 1);
+	// fragColor = vec4(getAlbedo(), 1);
 	fragColor = vec4(final, 1);
 	// fragColor = vec4(NdotL, NdotH, NdotV, 1);
 	// fragColor = vec4(F, 1);

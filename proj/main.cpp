@@ -317,9 +317,24 @@ class Teapot: public RenderObject{
 	void updateUniforms(){
 		RenderObject::updateUniforms();
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["envmap"].textureId);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["cubemap"].textureId);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
+
+		glActiveTexture(GL_TEXTURE0);
 
 		glUniform1i(program->uniforms["skybox"], 0);
+		glUniform1i(program->uniforms["albedoMap"], 1);
+		glUniform1i(program->uniforms["metalMap"], 2);
+		glUniform1i(program->uniforms["roughMap"], 3);
+
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
 	}
@@ -383,6 +398,7 @@ shared_ptr<RenderObject> ParseObj(const string &fileName, const string &name, sh
 					string s = curLine.substr(2);
 					string del = " /";
 					for(int i = 0; i < 3; i++){
+						// integers[i * 3 + 1] = -1;
 						for(int j = 0; j < 3; j++){
 							string token = s.substr(0, s.find_first_of(del));
 							s.erase(0, s.find_first_of(del) + 1);
@@ -391,11 +407,7 @@ shared_ptr<RenderObject> ParseObj(const string &fileName, const string &name, sh
 								// dbg("empty token");
 								continue;
 							}
-							try{
-								integers[i*3+j] = stoi(token);
-							}catch(...){
-								dbg(curLine);
-							}
+							integers[i*3+j] = stoi(token);
 						}
 						vIndex[i] = integers[i * 3];
 						tIndex[i] = integers[i * 3 + 1];
@@ -578,7 +590,10 @@ void initTonemapProgram(){
 
 void initShaders(){
 	initTonemapProgram();
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness"});
+
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap"});
+	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
+
 	initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
 	initShader("ground", "groundv.glsl", "groundf.glsl", {"groundTexture"});
@@ -613,7 +628,7 @@ void Geometry::initVBO()
 	const int nSize = this->normals.size();
 	dbg(nSize);
 	const int tSize = this->textures.size();
-	// dbg(tSize);
+	dbg(tSize);
 	const int fSize = this->faces.size();
 	// dbg(fSize);
 	assert(vSize == nSize);
@@ -689,6 +704,14 @@ void Geometry::initVBO()
 				normalData[3*indexv + 1] = n.y;
 				normalData[3*indexv + 2] = n.z;
 			}
+			// if (tSize == vSize){
+				int indext = this->faces[i].tIndex[j];
+				if(indext == -1) continue;
+				dbg(indext);
+				Texture t = this->textures[indext];
+				uvData[2 * indexv] = t.u;
+				uvData[2 * indexv + 1] = t.v;
+			// }
 		}
 	}
 
@@ -877,7 +900,7 @@ void Rect::init(){
 	this->normals.push_back(Normal(0, 0, 1));
 	int vIndex[3] = {0, 1, 2};
 	int nIndex[3] = {0, 0, 0};
-	int tIndex[3] = {0, 0, 0};
+	int tIndex[3] = {-1,-1,-1};
 	this->faces.push_back(Face(vIndex, tIndex, nIndex));
 	vIndex[0] = 0;
 	vIndex[1] = 2;
@@ -955,6 +978,11 @@ void init()
 
 	readImage("hw2_support_files/ground_texture_sand.jpg", "ground");
 	readImage("hw2_support_files/gray.jpg", "matcapblack");
+
+	readImage("hw2_support_files/pbr/rust/a.png", "rustA");
+	readImage("hw2_support_files/pbr/rust/m.png", "rustM");
+	readImage("hw2_support_files/pbr/rust/r.png", "rustR");
+
 	readImage("hw2_support_files/soft_clay.jpg", "clay");
 
 	initEnvMapTexture();
@@ -1196,8 +1224,8 @@ void setViewingMatrix()
 	eyeRotX = eyeRotX > 360 ? eyeRotX - 360 : eyeRotX;
 	eyeRotX = eyeRotX < 0 ? eyeRotX + 360 : eyeRotX;
 	// clamp
-	eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 0.f + eyeRotYInitial);
-	// eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 85.f - eyeRotYInitial);
+	// eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 0.f + eyeRotYInitial);
+	eyeRotY = glm::clamp(eyeRotY, -85.f + eyeRotYInitial, 85.f - eyeRotYInitial);
 	// float newEyeRotY = eyeRotY = glm::clamp(eyeRotY, -85.f, 85.f);
 	// view matrix
 	glm::mat4 matRx = glm::rotate<float>(glm::mat4(1.0), (eyeRotY / 180.) * M_PI, glm::vec3(1.0, 0.0, 0.0));
