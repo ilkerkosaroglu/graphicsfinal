@@ -296,6 +296,35 @@ class TeslaWindows: public RenderObject{
 	}
 };
 
+class Teapot: public RenderObject{
+	public:
+	Teapot(){
+		program = &programs["teapot"];
+		props["metalness"] = 0.0;
+		props["roughness"] = 0.0;
+	}
+	Teapot(int x, int z, int numx, int numz){
+		program = &programs["teapot"];
+		props["metalness"] = x/(float)numx;
+		props["roughness"] = z/(float)numz;
+		position.x = x*10.0;
+		position.z = z*10.0;
+	}
+	void calculateModelMatrix(){
+		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position);
+	}
+
+	void updateUniforms(){
+		RenderObject::updateUniforms();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["envmap"].textureId);
+
+		glUniform1i(program->uniforms["skybox"], 0);
+		glUniform1f(program->uniforms["metalness"], props["metalness"]);
+		glUniform1f(program->uniforms["roughness"], props["roughness"]);
+	}
+};
+
 shared_ptr<RenderObject> ParseObj(const string &fileName, const string &name, shared_ptr<RenderObject> obj)
 {
 	fstream myfile;
@@ -526,6 +555,7 @@ void initTonemapProgram(){
 
 void initShaders(){
 	initTonemapProgram();
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness"});
 	initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
 	initShader("ground", "groundv.glsl", "groundf.glsl", {"groundTexture"});
@@ -880,6 +910,12 @@ void init()
 	readImage("hw2_support_files/soft_clay.jpg", "clay");
 
 	initEnvMapTexture();
+
+	for(int i=0; i<3; i++){
+		for(int j=0; j<3; j++){
+			ParseObj("hw2_support_files/obj/teapot.obj", "teapot", make_unique<Teapot>(i,j,3,3));
+		}
+	}
 
 	ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
 	ParseObj("hw2_support_files/obj/ground.obj", "ground", make_unique<Ground>());
