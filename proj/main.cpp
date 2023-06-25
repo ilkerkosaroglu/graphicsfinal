@@ -6,6 +6,8 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <unordered_map>
+#include <array>
 #include <map>
 #include <memory>
 #define _USE_MATH_DEFINES
@@ -28,6 +30,26 @@
 
 #define BUFFER_OFFSET(i) ((char*)NULL + (i))
 
+namespace std
+{
+    template<typename T, size_t N>
+    struct hash<array<T, N> >
+    {
+        typedef array<T, N> argument_type;
+        typedef size_t result_type;
+
+        result_type operator()(const argument_type& a) const
+        {
+            hash<T> hasher;
+            result_type h = 0;
+            for (result_type i = 0; i < N; ++i)
+            {
+                h = h * 31 + hasher(a[i]);
+            }
+            return h;
+        }
+    };
+}
 using namespace std;
 
 int gWidth, gHeight;
@@ -603,6 +625,18 @@ void initShaders(){
 	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox", "skyd", "skym"});
 }
 
+// class VData{
+// 	public:
+// 	Vertex v;
+// 	Normal n;
+// 	Texture t;
+// 	VData(Vertex v, Normal n, Texture t){
+// 		this->v = v;
+// 		this->n = n;
+// 		this->t = t;
+// 	}
+// };
+
 void Geometry::initVBO()
 {
 	GLuint &vao = this->vao;
@@ -633,89 +667,60 @@ void Geometry::initVBO()
 	// dbg(fSize);
 	assert(vSize == nSize);
 
-	this->vertexDataSizeInBytes = vSize * 3 * sizeof(GLfloat);
-	this->normalDataSizeInBytes = nSize * 3 * sizeof(GLfloat);
-	this->textureDataSizeInBytes = tSize * 3 * sizeof(GLfloat);
-	int indexDataSizeInBytes = fSize * 3 * sizeof(GLuint);
-	GLfloat *vertexData = new GLfloat[vSize * 3];
-	GLfloat *normalData = new GLfloat[nSize * 3];
-	GLfloat *uvData = new GLfloat[tSize * 3];
-	GLuint *indexData = new GLuint[fSize * 3];
-
-	float minX = 1e6, maxX = -1e6;
-	float minY = 1e6, maxY = -1e6;
-	float minZ = 1e6, maxZ = -1e6;
-
-	for (int i = 0; i < vSize; ++i)
-	{
-		vertexData[3 * i] = this->vertices[i].x;
-		vertexData[3 * i + 1] = this->vertices[i].y;
-		vertexData[3 * i + 2] = this->vertices[i].z;
-
-		minX = std::min(minX, this->vertices[i].x);
-		maxX = std::max(maxX, this->vertices[i].x);
-		minY = std::min(minY, this->vertices[i].y);
-		maxY = std::max(maxY, this->vertices[i].y);
-		minZ = std::min(minZ, this->vertices[i].z);
-		maxZ = std::max(maxZ, this->vertices[i].z);
-	}
-
-	// std::cout << "minX = " << minX << std::endl;
-	// std::cout << "maxX = " << maxX << std::endl;
-	// std::cout << "minY = " << minY << std::endl;
-	// std::cout << "maxY = " << maxY << std::endl;
-	// std::cout << "minZ = " << minZ << std::endl;
-	// std::cout << "maxZ = " << maxZ << std::endl;
-
-	for (int i = 0; i < nSize; ++i)
-	{
-		// normalData[3 * i] = this->normals[this->faces[i].nIndex[0]].x;
-		// normalData[3 * i+1] = this->normals[this->faces[i].nIndex[0]].y;
-		// normalData[3 * i+2] = this->normals[this->faces[i].nIndex[0]].z;
-		// normalData[3 * i + 1] = this->faces[i].nIndex[1];
-		// normalData[3 * i + 2] = this->faces[i].nIndex[2];
-		// Normal n = this->normals[this->faces[i].nIndex[0]];
-		// normalData[3 * i] = n.x;
-		// normalData[3 * i + 1] = n.y;
-		// normalData[3 * i + 2] = n.z;
-		normalData[3 * i] = this->normals[i].x;
-		normalData[3 * i + 1] = this->normals[i].y;
-		normalData[3 * i + 2] = this->normals[i].z;
-	}
-	for (int i = 0; i < tSize; ++i)
-	{
-		uvData[2 * i] = this->textures[i].u;
-		uvData[2 * i + 1] = this->textures[i].v;
-	}
-
+	vector<array<GLuint,3>> vData;
+	vector<GLuint> fIndices;
+	unordered_map<array<GLuint,3>, int> vMap;
+	// unordered_set<GLuint> fIndices;
 	for (int i = 0; i < fSize; ++i)
 	{
-		indexData[3 * i] = this->faces[i].vIndex[0];
-		indexData[3 * i + 1] = this->faces[i].vIndex[1];
-		indexData[3 * i + 2] = this->faces[i].vIndex[2];
-
-		for (int j=0;j<3;j++){
-
-			int indexv = this->faces[i].vIndex[j];
-			int indexn = this->faces[i].nIndex[j];
-			if(indexn!=indexv){
-				Normal n = this->normals[indexn];
-				normalData[3*indexv] = n.x;
-				normalData[3*indexv + 1] = n.y;
-				normalData[3*indexv + 2] = n.z;
+		for (int j = 0; j < 3; ++j)
+		{
+			array<GLuint, 3> vertex = {faces[i].vIndex[j], faces[i].nIndex[j], faces[i].tIndex[j]};
+			auto it = vMap.find(vertex);
+			if (it == vMap.end()){
+				vData.push_back(vertex);
+				vMap[vertex] = vData.size()-1;
+				fIndices.push_back(vData.size()-1);
+			}else{
+				auto index = it->second;
+				fIndices.push_back(index);
 			}
-			// if (tSize == vSize){
-				int indext = this->faces[i].tIndex[j];
-				if(indext == -1) continue;
-				dbg(indext);
-				Texture t = this->textures[indext];
-				uvData[2 * indexv] = t.u;
-				uvData[2 * indexv + 1] = t.v;
-			// }
 		}
 	}
 
+	dbg(vData.size());
+	dbg(fSize);
+	dbg(tSize);
 
+	int siz = vData.size();
+
+	this->vertexDataSizeInBytes = siz * 3 * sizeof(GLfloat);
+	this->normalDataSizeInBytes = siz * 3 * sizeof(GLfloat);
+	this->textureDataSizeInBytes = siz * 2 * sizeof(GLfloat);
+	int indexDataSizeInBytes = fSize * 3 * sizeof(GLuint);
+	GLfloat *vertexData = new GLfloat[siz * 3];
+	GLfloat *normalData = new GLfloat[siz * 3];
+	GLfloat *uvData = new GLfloat[siz * 2];
+	GLuint *indexData = new GLuint[fSize * 3];
+
+	int i = 0;
+	for (auto k: fIndices){
+		auto [v,n,t] = vData[k];
+		vertexData[3 * k] = this->vertices[v].x;
+		vertexData[3 * k + 1] = this->vertices[v].y;
+		vertexData[3 * k + 2] = this->vertices[v].z;
+
+		normalData[3 * k] = this->normals[n].x;
+		normalData[3 * k + 1] = this->normals[n].y;
+		normalData[3 * k + 2] = this->normals[n].z;
+
+		if(t != -1){
+			uvData[2 * k] = this->textures[t].u;
+			uvData[2 * k + 1] = this->textures[t].v;
+		}
+
+		indexData[i++] = k;
+	}
 
 	glBufferData(GL_ARRAY_BUFFER, this->vertexDataSizeInBytes + this->normalDataSizeInBytes + this->textureDataSizeInBytes, 0, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, this->vertexDataSizeInBytes, vertexData);
