@@ -73,6 +73,8 @@ glm::vec3 prllGround(d.r, 0, d.b);
 float eyeRotYInitial = (acos(dot(normalize(d), normalize(prllGround)))*180.0)/M_PI;
 glm::vec3 armCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
 
+glm::vec3 lookingDir = glm::vec3(0, 0, -1);
+
 int activeProgramIndex = 0;
 
 float skyd = 1.0;
@@ -184,7 +186,7 @@ class RenderObject{
 		return;
 	}
 	virtual void calculateModelMatrix();
-	void drawModel();
+	virtual void drawModel();
 	virtual void updateUniforms();
 };
 
@@ -248,8 +250,9 @@ class TeslaBody: public RenderObject{
 	void update(){
 		float speed = props["speed"];
 		float angle = props["angle"];
-		objCenter.x += speed * sin((-angle / 180.) * M_PI);
-		objCenter.z += speed * cos((-angle / 180.) * M_PI);
+		objCenter.x += speed * lookingDir.x;
+		objCenter.y += speed * lookingDir.y;
+		objCenter.z += speed * lookingDir.z;
 		const float friction = 0.005;
 		if(speed>0){
 			props["speed"] -= friction;
@@ -280,6 +283,9 @@ class TeslaBody: public RenderObject{
 		glUniform1i(program->uniforms["skybox"], 0);
 		glUniform1i(program->uniforms["matcap"], 1);
 	}
+	void drawModel(){
+		update();
+	}
 };
 
 class TeslaWheels: public RenderObject{
@@ -294,6 +300,8 @@ class TeslaWheels: public RenderObject{
 		float angle = getRenderObject("TeslaBody")->props["angle"];
 		glm::mat4 matRy = glm::rotate<float>(glm::mat4(1.0), (-angle / 180.) * M_PI, glm::vec3(0.0, 1.0, 0.0));
 		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position) * matRy;
+	}
+	void drawModel(){
 	}
 };
 
@@ -315,6 +323,8 @@ class TeslaWindows: public RenderObject{
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["envmap"].textureId);
 		glUniform1i(program->uniforms["skybox"], 0);
+	}
+	void drawModel(){
 	}
 };
 
@@ -658,11 +668,11 @@ void Geometry::initVBO()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->indexBuffer);
 
 	const int vSize = this->vertices.size();
-	dbg(vSize);
+	// dbg(vSize);
 	const int nSize = this->normals.size();
-	dbg(nSize);
+	// dbg(nSize);
 	const int tSize = this->textures.size();
-	dbg(tSize);
+	// dbg(tSize);
 	const int fSize = this->faces.size();
 	// dbg(fSize);
 	assert(vSize == nSize);
@@ -688,9 +698,9 @@ void Geometry::initVBO()
 		}
 	}
 
-	dbg(vData.size());
-	dbg(fSize);
-	dbg(tSize);
+	// dbg(vData.size());
+	// dbg(fSize);
+	// dbg(tSize);
 
 	int siz = vData.size();
 
@@ -746,23 +756,26 @@ void loadTexture(Image& img){
 	glGenTextures(1, &t.textureId);
 	glBindTexture(GL_TEXTURE_2D, t.textureId);
 
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	auto format = img.channels == 3 ? GL_RGB : GL_RGBA;
+	int formats [] = {GL_RED, GL_RG, GL_RGB, GL_RGBA};
+	auto format = formats[img.channels-1];
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glTexImage2D(GL_TEXTURE_2D, 0, format, img.width, img.height, 0, format, GL_UNSIGNED_BYTE, img.data);
-	glGenerateMipmap(GL_TEXTURE_2D);
+	// glGenerateMipmap(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, 0);
 	cerr << "loaded texture " << img.name << " with id " << t.textureId << endl;
 }
 
 void loadHDRTexture(Image& img){
-	cerr <<"starting to load hdr " << (!!img.data) <<" channels:"<<img.channels<< endl;
+	// cerr <<"starting to load hdr " << (!!img.data) <<" channels:"<<img.channels<< endl;
 	float *data = (float*)img.data;
-	cerr<<"data samples:"<<data[0]<<","<<data[1]<<","<<data[2]<<","<<data[3]<< endl;
+	// cerr<<"data samples:"<<data[0]<<","<<data[1]<<","<<data[2]<<","<<data[3]<< endl;
 	textures[img.name] = ImgTexture();
 	ImgTexture &t = textures[img.name];
 
@@ -808,12 +821,11 @@ void readImage(string p, string name, bool loadAsTex = true){
 	int w,h,c;
 	const char* path = p.c_str();
 	void *image;
+	stbi_set_flip_vertically_on_load(true);
 	if(p.find(".hdr") != string::npos || p.find(".exr") != string::npos){
-		stbi_set_flip_vertically_on_load(true);
 		image = stbi_loadf(path, &w, &h, &c, 0);
 	}
 	else{
-		stbi_set_flip_vertically_on_load(true);
 		image = stbi_load(path, &w, &h, &c, 0);
 	}
 	// unsigned char *image = stbi_load(path, &w, &h, &c, STBI_rgb);
@@ -1249,6 +1261,7 @@ void setViewingMatrix()
 
 	// Set the viewing matrix
 	viewingMatrix = glm::lookAt(newEyePos, objCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+	lookingDir = glm::normalize(objCenter - newEyePos);
 }
 
 void reshape(GLFWwindow *window, int w, int h)
@@ -1332,6 +1345,7 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
 
 void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
+	if(GL_DEBUG_TYPE_OTHER == type)return;
 	// if(GL_DEBUG_TYPE_ERROR != type)return;
 	printf("GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s",
 		   (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),

@@ -7,10 +7,10 @@ uniform sampler2D albedoMap;
 uniform sampler2D metalMap;
 uniform sampler2D roughMap;
 
-uniform float metalness;
-uniform float roughness;
+// uniform float metalness;
+// uniform float roughness;
 // vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
-vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
+// vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 // vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
 
 in vec4 fragWorldPos;
@@ -144,10 +144,14 @@ void main(void)
 
 	vec3 skyboxReflectDir = vec3(reflectDir.x, -reflectDir.y, -reflectDir.z);
 
-	// fragColor = vec4(uv, 1, 1);
+	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
 	fragColor = vec4(final, 1);
+	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);
+	// fragColor = vec4(getMetalness(), 1.0,1.0, 1);
+	// fragColor = vec4(getRoughness(), 1.0,1.0, 1);
 	// fragColor = vec4(NdotL, NdotH, NdotV, 1);
 	// fragColor = vec4(F, 1);
 	// fragColor = mix(vec4(final, 1), texture(skybox, skyboxReflectDir), 0.3);
+	fragColor = texture(skybox, skyboxReflectDir);
 }
