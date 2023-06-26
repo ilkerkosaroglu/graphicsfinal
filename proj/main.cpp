@@ -93,6 +93,8 @@ GLuint colorBuffer;
 
 GLuint tonemapProgram;
 
+int skybox6Res = 512;
+
 bool drawnIrr = false;
 vector<string> hdris;
 int hdriIndex = 0;
@@ -902,7 +904,7 @@ void initCubeMapTexture(){
 	textures["skybox6"] = ImgTexture();
 	ImgTexture &t = textures["skybox6"];
 
-	int res = 2048;
+	int res = skybox6Res;
 
 	glGenTextures(1, &t.textureId);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
@@ -1251,7 +1253,7 @@ void drawSkybox6(){
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, diffirrFBO);
-	int res = 2048;
+	int res = skybox6Res;
 	glViewport(0, 0, res, res);
 
 	auto prevVM = viewingMatrix;
