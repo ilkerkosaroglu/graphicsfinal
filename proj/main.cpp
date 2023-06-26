@@ -82,6 +82,7 @@ int activeProgramIndex = 0;
 float skyd = 1.0;
 float skym = 100.0;
 float t = 0;
+int renderMode = 0;
 
 GLuint defaultFBO = 0;
 GLuint fbo;
@@ -257,6 +258,8 @@ class Teapot: public RenderObject{
 		glUniform1i(program->uniforms["metalMap"], 3);
 		glUniform1i(program->uniforms["roughMap"], 4);
 		glUniform1i(program->uniforms["prefilterMap"], 5);
+		
+		glUniform1i(program->uniforms["renderMode"], renderMode);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
@@ -304,6 +307,8 @@ class Armadillo: public RenderObject{
 		glUniform1i(program->uniforms["metalMap"], 3);
 		glUniform1i(program->uniforms["roughMap"], 4);
 		glUniform1i(program->uniforms["prefilterMap"], 5);
+
+		glUniform1i(program->uniforms["renderMode"], renderMode);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
@@ -670,7 +675,7 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t","brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
@@ -1449,19 +1454,19 @@ void calcInteractions(){
 	}
 	if (shouldDoAction(GLFW_KEY_U))
 	{
-		skyd += 0.2;
+		renderMode = 2;
 	}
 	if (shouldDoAction(GLFW_KEY_J))
 	{
-		skyd -= 0.2;
+		renderMode = 3;
 	}
 	if (shouldDoAction(GLFW_KEY_Y))
 	{
-		skym += 1.0;
+		renderMode= 0;
 	}
 	if (shouldDoAction(GLFW_KEY_H))
 	{
-		skym -= 1.0;
+		renderMode = 1;
 	}
 	float angle = getRenderObject("TeslaBody")->props["angle"];
 	eyeRotX += 180 - angle;

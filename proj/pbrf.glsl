@@ -13,6 +13,7 @@ uniform samplerCube prefilterMap;
 uniform float metalness;
 uniform float roughness;
 uniform float t;
+uniform int renderMode;
 // vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
 vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 // vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
@@ -173,10 +174,14 @@ void main(void)
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
 	fragColor = vec4(final, 1);
+	if(renderMode == 1){
+		fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/100.0)/2+0.5)*4.0).rgb,1.0);
+	}
+	if(renderMode == 2){
+		fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
+	}
 	// fragColor = vec4(texture(brdfLUT, uv).rgb, 1);
-	// fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/100.0)/2+0.5)*4.0).rgb,1.0);
 	// fragColor = vec4(sampleFromCubeMap(prefilterMap, N), 1);
-	// fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
 	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);
 	// fragColor = vec4(getMetalness(), 1.0,1.0, 1);
 	// fragColor = vec4(getRoughness(), 1.0,1.0, 1);
