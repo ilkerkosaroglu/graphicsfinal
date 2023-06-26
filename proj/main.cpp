@@ -258,7 +258,7 @@ class Teapot: public RenderObject{
 		glUniform1i(program->uniforms["metalMap"], 3);
 		glUniform1i(program->uniforms["roughMap"], 4);
 		glUniform1i(program->uniforms["prefilterMap"], 5);
-		
+
 		glUniform1i(program->uniforms["renderMode"], renderMode);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
@@ -1416,11 +1416,35 @@ void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods){
 		drawnIrr = false;
 		cout <<"switched panorama to "<< hdris[hdriIndex] << endl;
 	}
-	if (key == GLFW_KEY_R && action == GLFW_PRESS){
-		eyeRotX = 0;
+	int prevRenderMode = renderMode;
+	map<int,string> renderModeNames = {
+		{0, "normal"},
+		{1, "specular (prefilter) - animated"},
+		{2, "diffuse (irradiance)"},
+		{3, "ambient"},
+		{4, "only lights"},
+		{5, "with lights"}
+	};
+	if (key == GLFW_KEY_G && action == GLFW_PRESS){
+		renderMode = 0;
 	}
-	if (key == GLFW_KEY_T && action == GLFW_PRESS){
-		eyeRotX = 180;
+	if (key == GLFW_KEY_H && action == GLFW_PRESS){
+		renderMode = 1;
+	}
+	if (key == GLFW_KEY_J && action == GLFW_PRESS){
+		renderMode = 2;
+	}
+	if (key == GLFW_KEY_K && action == GLFW_PRESS){
+		renderMode = 3;
+	}
+	if (key == GLFW_KEY_V && action == GLFW_PRESS){
+		renderMode = 4;
+	}
+	if (key == GLFW_KEY_B && action == GLFW_PRESS){
+		renderMode = 5;
+	}
+	if(prevRenderMode != renderMode){
+		cout << "switched render mode to " << renderMode <<" which is the "<< renderModeNames[renderMode] <<" mode" << endl;
 	}
 	if(action == GLFW_PRESS){
 		pressed[key] = true;
@@ -1451,22 +1475,6 @@ void calcInteractions(){
 	if (shouldDoAction(GLFW_KEY_D))
 	{
 		getRenderObject("TeslaBody")->props["angle"] += 2.0;
-	}
-	if (shouldDoAction(GLFW_KEY_U))
-	{
-		renderMode = 2;
-	}
-	if (shouldDoAction(GLFW_KEY_J))
-	{
-		renderMode = 3;
-	}
-	if (shouldDoAction(GLFW_KEY_Y))
-	{
-		renderMode= 0;
-	}
-	if (shouldDoAction(GLFW_KEY_H))
-	{
-		renderMode = 1;
 	}
 	float angle = getRenderObject("TeslaBody")->props["angle"];
 	eyeRotX += 180 - angle;

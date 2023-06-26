@@ -159,26 +159,53 @@ void main(void)
 	F0      = mix(F0, albedo, metalness);
 	vec3 kS = fresnelSchlickRoughness(NdotV, F0, roughness); 
 	vec3 kD = 1.0 - kS;
+	kD *= 1.0 - metalness;
+
 	vec3 irradiance = sampleFromCubeMap(irradianceMap, N).rgb;
 	vec3 diffuse    = irradiance * albedo;
-	vec3 ambient    = (kD * diffuse) * ka;
+	
+	vec3 reflectDir = reflect(-V, N);
+	vec3 skyboxReflectDir = vec3(reflectDir.x, -reflectDir.y, -reflectDir.z);
+
+	vec3 prefilteredColor = textureLod(prefilterMap, skyboxReflectDir,  roughness * 4).rgb;   
+	vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+	vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
+
+	vec3 oldambient    = (kD * diffuse) * ka;
+	vec3 ambient    = (kD * diffuse + specular) * ka;
 	final+= ambient;
 	
 
-	vec3 reflectDir = reflect(-V, N);
+	
 
-	vec3 skyboxReflectDir = vec3(reflectDir.x, -reflectDir.y, -reflectDir.z);
+	
 
 	vec3 N2 =vec3(N.x, -N.y, -N.z);
 
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
+
 	fragColor = vec4(final, 1);
+	
 	if(renderMode == 1){
-		fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/100.0)/2+0.5)*4.0).rgb,1.0);
+		fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/60.0)/2+0.5)*4.0).rgb,1.0);
 	}
 	if(renderMode == 2){
 		fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
+	}
+	if(renderMode == 3){
+		fragColor = vec4(oldambient, 1);
+	}
+	if(renderMode == 4){
+		fragColor = vec4(0,0,0, 1);
+		for(int i = 0; i < 4; i++){
+			fragColor += vec4(calcLight(lightPos[i]),1);
+		}
+	}
+	if(renderMode == 5){
+		for(int i = 0; i < 4; i++){
+			fragColor += vec4(calcLight(lightPos[i]),1);
+		}
 	}
 	// fragColor = vec4(texture(brdfLUT, uv).rgb, 1);
 	// fragColor = vec4(sampleFromCubeMap(prefilterMap, N), 1);
