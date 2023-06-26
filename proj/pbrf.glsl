@@ -2,6 +2,8 @@
 
 uniform vec3 eyePos;
 
+uniform sampler2D brdfLUT;
+
 uniform samplerCube irradianceMap;
 uniform sampler2D albedoMap;
 uniform sampler2D metalMap;
@@ -170,8 +172,9 @@ void main(void)
 
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
-	// fragColor = vec4(final, 1);
-	fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/100.0)/2+0.5)*4.0).rgb,1.0);
+	fragColor = vec4(final, 1);
+	// fragColor = vec4(texture(brdfLUT, uv).rgb, 1);
+	// fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/100.0)/2+0.5)*4.0).rgb,1.0);
 	// fragColor = vec4(sampleFromCubeMap(prefilterMap, N), 1);
 	// fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
 	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);

@@ -232,26 +232,35 @@ class Teapot: public RenderObject{
 	void updateUniforms(){
 		RenderObject::updateUniforms();
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
+		glBindTexture(GL_TEXTURE_2D, ::textures["brdfLUT"].textureId);
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
 
 		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
+
+		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["prefilter"].textureId);
 
 		glActiveTexture(GL_TEXTURE0);
 
-		glUniform1i(program->uniforms["irradianceMap"], 0);
-		glUniform1i(program->uniforms["albedoMap"], 1);
-		glUniform1i(program->uniforms["metalMap"], 2);
-		glUniform1i(program->uniforms["roughMap"], 3);
+		glUniform1i(program->uniforms["brdfLUT"], 0);
+		glUniform1i(program->uniforms["irradianceMap"], 1);
+		glUniform1i(program->uniforms["albedoMap"], 2);
+		glUniform1i(program->uniforms["metalMap"], 3);
+		glUniform1i(program->uniforms["roughMap"], 4);
+		glUniform1i(program->uniforms["prefilterMap"], 5);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
+		glUniform1f(program->uniforms["t"], t);
 	}
 };
 
@@ -270,27 +279,31 @@ class Armadillo: public RenderObject{
 	void updateUniforms(){
 		RenderObject::updateUniforms();
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
+		glBindTexture(GL_TEXTURE_2D, ::textures["brdfLUT"].textureId);
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
 
 		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
+
+		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["prefilter"].textureId);
 
 		glActiveTexture(GL_TEXTURE0);
 
-		glUniform1i(program->uniforms["irradianceMap"], 0);
-		glUniform1i(program->uniforms["albedoMap"], 1);
-		glUniform1i(program->uniforms["metalMap"], 2);
-		glUniform1i(program->uniforms["roughMap"], 3);
-		glUniform1i(program->uniforms["prefilterMap"], 4);
+		glUniform1i(program->uniforms["brdfLUT"], 0);
+		glUniform1i(program->uniforms["irradianceMap"], 1);
+		glUniform1i(program->uniforms["albedoMap"], 2);
+		glUniform1i(program->uniforms["metalMap"], 3);
+		glUniform1i(program->uniforms["roughMap"], 4);
+		glUniform1i(program->uniforms["prefilterMap"], 5);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
@@ -657,7 +670,7 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness","t", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t","brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
@@ -932,6 +945,9 @@ void initDiffIrrTexture(){
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	// glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	// glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
@@ -1126,6 +1142,8 @@ HDRSkyBoxPref skyboxPrefilter;
 void init()
 {
 	initShaders();
+
+	readImage("hw2_support_files/ibl_brdf_lut.png", "brdfLUT");
 
 	readImage("hw2_support_files/ground_texture_sand.jpg", "ground");
 	readImage("hw2_support_files/gray.jpg", "matcapblack");
