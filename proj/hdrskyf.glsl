@@ -42,6 +42,6 @@ void main(void)
 	// 	}
 	// }
 	vec3 color = texture(skybox, SampleSphericalMap(dir)).xyz;
-	fragColor = vec4(clamp(color, 0.0, 1000000.0), 1.0);
+	fragColor = vec4(clamp(color, 0.0, 10000000.0), 1.0);
 
 }

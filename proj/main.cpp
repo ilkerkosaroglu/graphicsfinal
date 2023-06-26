@@ -72,7 +72,8 @@ glm::vec3 eyePosActual = objCenter+eyePosDiff; // set this eye position to move,
 glm::vec3 d = eyePosDiff;
 glm::vec3 prllGround(d.r, 0, d.b);
 float eyeRotYInitial = (acos(dot(normalize(d), normalize(prllGround)))*180.0)/M_PI;
-glm::vec3 armCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
+glm::vec3 armCenter = glm::vec3(-0.1f, 0.0f, -7.0f);
+// glm::vec3 armCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
 
 glm::vec3 lookingDir = glm::vec3(0, 0, -1);
 
@@ -84,6 +85,7 @@ float skym = 100.0;
 GLuint defaultFBO = 0;
 GLuint fbo;
 GLuint diffirrFBO;
+GLuint prefilterFBO;
 GLuint hdrFBO;
 GLuint cubemapFBO;
 GLuint colorBuffer;
@@ -206,10 +208,54 @@ shared_ptr<RenderObject>& getRenderObject(const string& name){
 	throw "RenderObject not found";
 }
 
+class Teapot: public RenderObject{
+	public:
+	Teapot(){
+		program = &programs["teapot"];
+		props["metalness"] = 0.0;
+		props["roughness"] = 0.0;
+	}
+	Teapot(int x, int z, int numx, int numz){
+		program = &programs["teapot"];
+		props["metalness"] = max((float)0.01, min(x / (float)numx, (float)0.99));
+		props["roughness"] = max((float)0.01, min(z / (float)numz, (float)0.99));
+		position.x = x*3.0;
+		position.z = z*3.0;
+	}
+	void calculateModelMatrix(){
+		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position);
+	}
+
+	void updateUniforms(){
+		RenderObject::updateUniforms();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
+
+		glActiveTexture(GL_TEXTURE0);
+
+		glUniform1i(program->uniforms["irradianceMap"], 0);
+		glUniform1i(program->uniforms["albedoMap"], 1);
+		glUniform1i(program->uniforms["metalMap"], 2);
+		glUniform1i(program->uniforms["roughMap"], 3);
+
+		glUniform1f(program->uniforms["metalness"], props["metalness"]);
+		glUniform1f(program->uniforms["roughness"], props["roughness"]);
+	}
+};
+
 class Armadillo: public RenderObject{
 	public:
 	Armadillo(){
-		program = &programs["arm"];
+		program = &programs["teapot"];
 		position = armCenter;
 	}
 	void calculateModelMatrix(){
@@ -221,8 +267,30 @@ class Armadillo: public RenderObject{
 	void updateUniforms(){
 		RenderObject::updateUniforms();
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, ::textures["clay"].textureId);
-		glUniform1i(program->uniforms["matcap"], 0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["prefilter"].textureId);
+
+		glActiveTexture(GL_TEXTURE0);
+
+		glUniform1i(program->uniforms["irradianceMap"], 0);
+		glUniform1i(program->uniforms["albedoMap"], 1);
+		glUniform1i(program->uniforms["metalMap"], 2);
+		glUniform1i(program->uniforms["roughMap"], 3);
+		glUniform1i(program->uniforms["prefilterMap"], 4);
+
+		glUniform1f(program->uniforms["metalness"], props["metalness"]);
+		glUniform1f(program->uniforms["roughness"], props["roughness"]);
 	}
 };
 class Ground: public RenderObject{
@@ -331,50 +399,6 @@ class TeslaWindows: public RenderObject{
 		glUniform1i(program->uniforms["skybox"], 0);
 	}
 	void drawModel(){
-	}
-};
-
-class Teapot: public RenderObject{
-	public:
-	Teapot(){
-		program = &programs["teapot"];
-		props["metalness"] = 0.0;
-		props["roughness"] = 0.0;
-	}
-	Teapot(int x, int z, int numx, int numz){
-		program = &programs["teapot"];
-		props["metalness"] = max((float)0.01, min(x / (float)numx, (float)0.99));
-		props["roughness"] = max((float)0.01, min(z / (float)numz, (float)0.99));
-		position.x = x*3.0;
-		position.z = z*3.0;
-	}
-	void calculateModelMatrix(){
-		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position);
-	}
-
-	void updateUniforms(){
-		RenderObject::updateUniforms();
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
-
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
-
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustM"].textureId);
-
-		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, ::textures["rustR"].textureId);
-
-		glActiveTexture(GL_TEXTURE0);
-
-		glUniform1i(program->uniforms["irradianceMap"], 0);
-		glUniform1i(program->uniforms["albedoMap"], 1);
-		glUniform1i(program->uniforms["metalMap"], 2);
-		glUniform1i(program->uniforms["roughMap"], 3);
-
-		glUniform1f(program->uniforms["metalness"], props["metalness"]);
-		glUniform1f(program->uniforms["roughness"], props["roughness"]);
 	}
 };
 
@@ -629,12 +653,13 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "irradianceMap"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("diffirr", "hdrskyv.glsl", "hdrskyconvf.glsl", {"skybox"});
 	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox"});
+	initShader("prefilter", "hdrskyv.glsl", "prefilterconv.glsl", {"skybox", "roughness"});
 
 	// initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
 	initShader("ground", "groundv.glsl", "groundf.glsl", {"groundTexture"});
@@ -916,6 +941,30 @@ void initDiffIrrTexture(){
 	glGenFramebuffers(1, &diffirrFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, diffirrFBO);
 }
+void initPrefilterTexture(){
+	textures["prefilter"] = ImgTexture();
+	ImgTexture &t = textures["prefilter"];
+	int res = 128;
+	glGenTextures(1, &t.textureId);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+	for (int i = 0; i < 6; ++i){
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB16F, res, res, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+
+	glGenFramebuffers(1, &prefilterFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, prefilterFBO);
+}
 
 void readSkybox(string path, string ext = "jpg"){
 	readImage((path + "right." + ext).c_str(), "right");
@@ -1040,6 +1089,18 @@ Program* HDRSkyBoxIrr::getProgram(){
 void HDRSkyBoxIrr::bindTexture(){
 	glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["skybox6"].textureId);
 }
+class HDRSkyBoxPref: public HDRSkyBox{
+	public:
+	Program *getProgram();
+	void bindTexture();
+};
+Program* HDRSkyBoxPref::getProgram(){
+	return &programs["prefilter"];
+}
+void HDRSkyBoxPref::bindTexture(){
+	glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["skybox6"].textureId);
+	// glUniform1f(program->uniforms["skyd"], skyd);
+}
 
 void SkyBox::init(){
 	readSkybox("hw2_support_files/custom/village/", "png");
@@ -1052,6 +1113,7 @@ void SkyBox::init(){
 }
 HDRSkyBox skybox;
 HDRSkyBoxIrr skyboxIrr;
+HDRSkyBoxPref skyboxPrefilter;
 
 /*** ----------------- INIT ------------------ */
 void init()
@@ -1070,6 +1132,7 @@ void init()
 	initEnvMapTexture();
 	initCubeMapTexture();
 	initDiffIrrTexture();
+	initPrefilterTexture();
 
 		for (int i = 0; i < 5; i++)
 	{
@@ -1078,7 +1141,7 @@ void init()
 		}
 	}
 
-	// ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
+	ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
 	ParseObj("hw2_support_files/obj/ground.obj", "ground", make_unique<Ground>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_body.obj", "TeslaBody", make_unique<TeslaBody>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_tires.obj", "TeslaWheels", make_unique<TeslaWheels>());
@@ -1205,9 +1268,34 @@ void drawSkybox6(){
 	projectionMatrix = prevPM;
 }
 
+void drawPrefilter(){
+	ImgTexture &t = textures["prefilter"];
+	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, prefilterFBO);
+	int res = 128;
+	glViewport(0, 0, res, res);
+
+	auto prevVM = viewingMatrix;
+	auto prevPM = projectionMatrix;
+	projectionMatrix = sqPers;
+	for (int i = 0; i < 6; ++i) {
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		viewingMatrix = vMs[i];
+
+		skyboxPrefilter.draw();
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
+	glViewport(0, 0, gWidth, gHeight);
+	viewingMatrix = prevVM;
+	projectionMatrix = prevPM;
+	drawnIrr = true;
+}
+
 void drawDiffIrr(){
-	if(drawnIrr) return;
-	drawSkybox6();
 	ImgTexture &t = textures["diffirr"];
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
 
@@ -1231,6 +1319,14 @@ void drawDiffIrr(){
 	glViewport(0, 0, gWidth, gHeight);
 	viewingMatrix = prevVM;
 	projectionMatrix = prevPM;
+	
+}
+
+void drawPBRTextures(){
+	if(drawnIrr) return;
+	drawSkybox6();
+	drawPrefilter();
+	drawDiffIrr();
 	drawnIrr = true;
 }
 
@@ -1242,8 +1338,7 @@ void display(){
 
 	// draw envmap centering the car (objCenter)
 	// drawEnvMap();
-	drawSkybox6();
-	drawDiffIrr();
+	drawPBRTextures();
 
 	skybox.draw();
 

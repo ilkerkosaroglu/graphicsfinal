@@ -6,6 +6,7 @@ uniform samplerCube irradianceMap;
 uniform sampler2D albedoMap;
 uniform sampler2D metalMap;
 uniform sampler2D roughMap;
+uniform samplerCube prefilterMap;
 
 uniform float metalness;
 uniform float roughness;
@@ -166,7 +167,8 @@ void main(void)
 
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
-	fragColor = vec4(final, 1);
+	// fragColor = vec4(final, 1);
+	fragColor = vec4(sampleFromCubeMap(prefilterMap, N), 1);
 	// fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
 	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);
 	// fragColor = vec4(getMetalness(), 1.0,1.0, 1);
