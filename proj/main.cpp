@@ -81,6 +81,7 @@ int activeProgramIndex = 0;
 
 float skyd = 1.0;
 float skym = 100.0;
+float t = 0;
 
 GLuint defaultFBO = 0;
 GLuint fbo;
@@ -291,6 +292,7 @@ class Armadillo: public RenderObject{
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
+		glUniform1f(program->uniforms["t"], t);
 	}
 };
 class Ground: public RenderObject{
@@ -653,7 +655,7 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness","t", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
@@ -952,12 +954,14 @@ void initPrefilterTexture(){
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	// glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	// glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
 	for (int i = 0; i < 6; ++i){
 		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB16F, res, res, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 	}
+
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
@@ -1097,9 +1101,10 @@ class HDRSkyBoxPref: public HDRSkyBox{
 Program* HDRSkyBoxPref::getProgram(){
 	return &programs["prefilter"];
 }
+float prefilterRoughness = 0;
 void HDRSkyBoxPref::bindTexture(){
 	glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["skybox6"].textureId);
-	// glUniform1f(program->uniforms["skyd"], skyd);
+	glUniform1f(getProgram()->uniforms["roughness"], prefilterRoughness);
 }
 
 void SkyBox::init(){
@@ -1274,19 +1279,24 @@ void drawPrefilter(){
 
 	glBindFramebuffer(GL_FRAMEBUFFER, prefilterFBO);
 	int res = 128;
-	glViewport(0, 0, res, res);
 
 	auto prevVM = viewingMatrix;
 	auto prevPM = projectionMatrix;
 	projectionMatrix = sqPers;
-	for (int i = 0; i < 6; ++i) {
+	for (int m = 0; m<5; m++){
+		unsigned int mipWidth = 128 * std::pow(0.5, m);
+		unsigned int mipHeight = 128 * std::pow(0.5, m);
+		glViewport(0, 0, mipWidth, mipHeight);
+		prefilterRoughness = m / 4.0;
+		for (int i = 0; i < 6; ++i) {
 
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, m);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		viewingMatrix = vMs[i];
+			viewingMatrix = vMs[i];
 
-		skyboxPrefilter.draw();
+			skyboxPrefilter.draw();
+		}
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 	glViewport(0, 0, gWidth, gHeight);
@@ -1448,6 +1458,7 @@ void mainLoop(GLFWwindow* window)
 	{
 		double currentTime = glfwGetTime();
 		frameCount++;
+		t += currentTime - previousTime;
 		if (currentTime - previousTime >= 1.0)
 		{
 			dbg(frameCount);

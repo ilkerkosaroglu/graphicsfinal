@@ -10,6 +10,7 @@ uniform samplerCube prefilterMap;
 
 uniform float metalness;
 uniform float roughness;
+uniform float t;
 // vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
 vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 // vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
@@ -165,10 +166,13 @@ void main(void)
 
 	vec3 skyboxReflectDir = vec3(reflectDir.x, -reflectDir.y, -reflectDir.z);
 
+	vec3 N2 =vec3(N.x, -N.y, -N.z);
+
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
 	// fragColor = vec4(final, 1);
-	fragColor = vec4(sampleFromCubeMap(prefilterMap, N), 1);
+	fragColor = vec4(textureLod(prefilterMap, N2, (sin(t/25.0)/2+0.5)*5.0).rgb,1.0);
+	// fragColor = vec4(sampleFromCubeMap(prefilterMap, N), 1);
 	// fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
 	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);
 	// fragColor = vec4(getMetalness(), 1.0,1.0, 1);
