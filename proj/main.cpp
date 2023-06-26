@@ -82,6 +82,7 @@ float skym = 100.0;
 
 GLuint defaultFBO = 0;
 GLuint fbo;
+GLuint diffirrFBO;
 GLuint hdrFBO;
 GLuint colorBuffer;
 
@@ -349,7 +350,7 @@ class Teapot: public RenderObject{
 	void updateUniforms(){
 		RenderObject::updateUniforms();
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["cubemap"].textureId);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["diffirr"].textureId);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, ::textures["rustA"].textureId);
@@ -626,13 +627,15 @@ void initShaders(){
 	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
-	initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
-	initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
+	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
+	initShader("diffirr", "hdrskyv.glsl", "hdrskyconvf.glsl", {"skybox"});
+	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox"});
+
+	// initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
 	initShader("ground", "groundv.glsl", "groundf.glsl", {"groundTexture"});
 	initShader("tesla", "bodyv.glsl", "bodyf.glsl", {"matcap", "skybox"});
 	initShader("wheels", "wv.glsl", "wf.glsl", {});
 	initShader("windows", "windowv.glsl", "windowf.glsl", {"skybox"});
-	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox", "skyd", "skym"});
 }
 
 // class VData{
@@ -876,6 +879,30 @@ void initEnvMapTexture(){
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, d.textureId, 0);
 }
 
+void initDiffIrrTexture(){
+	textures["diffirr"] = ImgTexture();
+	ImgTexture &t = textures["diffirr"];
+	int res = 32;
+	glGenTextures(1, &t.textureId);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	for (int i = 0; i < 6; ++i){
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB16F, res, res, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+
+	glGenFramebuffers(1, &diffirrFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, diffirrFBO);
+}
+
 void readSkybox(string path, string ext = "jpg"){
 	readImage((path + "right." + ext).c_str(), "right");
 	readImage((path + "left." + ext).c_str(), "left");
@@ -959,17 +986,21 @@ void SkyBox::draw(){
 class HDRSkyBox: public SkyBox{
 	public:
 	void draw();
+	virtual Program *getProgram();
 };
+Program* HDRSkyBox::getProgram(){
+	return &programs["hdrsky"];
+}
 void HDRSkyBox::draw(){
-	auto program = &programs["hdrsky"];
+	auto program = getProgram();
 	glDepthFunc(GL_LEQUAL);
 	glDepthRange(1, 1);
 	glUseProgram(program->program);
 	glUniformMatrix4fv(program->uniforms["projectionMatrix"], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(program->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
 	glUniform1i(program->uniforms["skybox"], 0);
-	glUniform1f(program->uniforms["skyd"], skyd);
-	glUniform1f(program->uniforms["skym"], skym);
+	// glUniform1f(program->uniforms["skyd"], skyd);
+	// glUniform1f(program->uniforms["skym"], skym);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, ::textures["hdrsky"].textureId);
@@ -977,6 +1008,13 @@ void HDRSkyBox::draw(){
 	rect.draw();
 	glDepthFunc(GL_LESS);
 	glDepthRange(0, 1);
+}
+class HDRSkyBoxIrr: public HDRSkyBox{
+	public:
+	Program *getProgram();
+};
+Program* HDRSkyBoxIrr::getProgram(){
+	return &programs["diffirr"];
 }
 
 void SkyBox::init(){
@@ -987,6 +1025,7 @@ void SkyBox::init(){
 	// readSkybox("hw2_support_files/skybox_texture_test/", "jpg");
 }
 HDRSkyBox skybox;
+HDRSkyBoxIrr skyboxIrr;
 
 /*** ----------------- INIT ------------------ */
 void init()
@@ -1003,14 +1042,16 @@ void init()
 	readImage("hw2_support_files/soft_clay.jpg", "clay");
 
 	initEnvMapTexture();
+	initDiffIrrTexture();
 
-	for(int i=0; i<5; i++){
+		for (int i = 0; i < 5; i++)
+	{
 		for(int j=0; j<5; j++){
 			ParseObj("hw2_support_files/obj/sphere.obj", "teapot", make_unique<Teapot>(i,j,5,5));
 		}
 	}
 
-	ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
+	// ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
 	ParseObj("hw2_support_files/obj/ground.obj", "ground", make_unique<Ground>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_body.obj", "TeslaBody", make_unique<TeslaBody>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_tires.obj", "TeslaWheels", make_unique<TeslaWheels>());
@@ -1106,6 +1147,45 @@ void drawEnvMap(){
 	projectionMatrix = prevPM;
 }
 
+bool drawnIrr = false;
+
+void drawDiffIrr(){
+	if(drawnIrr) return;
+	vector<glm::mat4> vMs = {
+		// right, left, bottom, top, front, back
+		glm::lookAt(objCenter, objCenter + glm::vec3( 1, 0, 0), glm::vec3(0, 1, 0)),
+		glm::lookAt(objCenter, objCenter + glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
+		glm::lookAt(objCenter, objCenter + glm::vec3( 0,-1, 0), glm::vec3(0, 0,-1)),
+		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 1, 0), glm::vec3(0, 0, 1)),
+		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 0,-1), glm::vec3(0, 1, 0)),
+		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 0, 1), glm::vec3(0, 1, 0)),
+	};
+	ImgTexture &t = textures["diffirr"];
+	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, diffirrFBO);
+	int res = 32;
+	glViewport(0, 0, res, res);
+
+	auto prevVM = viewingMatrix;
+	auto prevPM = projectionMatrix;
+	projectionMatrix = glm::perspective((float)((90.0 / 180.0) * M_PI), 1.0f, 1.0f, 1000.0f);;
+	for (int i = 0; i < 6; ++i) {
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		viewingMatrix = vMs[i];
+
+		skyboxIrr.draw();
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
+	glViewport(0, 0, gWidth, gHeight);
+	viewingMatrix = prevVM;
+	projectionMatrix = prevPM;
+	drawnIrr = true;
+}
+
 void display(){
 	glClearColor(0, 0, 0, 1);
 	glClearDepth(1.0f);
@@ -1114,6 +1194,7 @@ void display(){
 
 	// draw envmap centering the car (objCenter)
 	drawEnvMap();
+	drawDiffIrr();
 
 	skybox.draw();
 

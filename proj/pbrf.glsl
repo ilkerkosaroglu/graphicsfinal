@@ -7,9 +7,9 @@ uniform sampler2D albedoMap;
 uniform sampler2D metalMap;
 uniform sampler2D roughMap;
 
-// uniform float metalness;
-// uniform float roughness;
-// vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
+uniform float metalness;
+uniform float roughness;
+vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
 // vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 // vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
 
@@ -29,11 +29,11 @@ vec3 kS = vec3(0.8, 0.8, 0.8);   // specular reflectance coefficient
 
 // vec3 lightPos = vec3(5, 5, 5);   // light position in world coordinates
 
-vec3 lightPos[4] = vec3[4](vec3(5, 5, 1), vec3(4, 5, 1), vec3(5, 4, 1), vec3(4, 4, 1));
+vec3 lightPos[4] = vec3[4](vec3(7.5, 3.0, 7.5), vec3(4.5, 3.0, 7.5), vec3(7.5, 3.0, 4.5), vec3(4.5, 3.0, 4.5));
 
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
+vec3 fresnelSchlick(float cosTheta, vec3 F0, float roughness)
 {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 float DistributionGGX(float NdotH, float roughness)
@@ -68,18 +68,18 @@ float GeometrySmith(float NdotL, float NdotV, float roughness)
 }
 
 vec3 getAlbedo(){
-	return texture(albedoMap, uv).rgb;
-	// return albedo;
+	// return texture(albedoMap, uv).rgb;
+	return albedo;
 }
 
 float getMetalness(){
-	return texture(metalMap, uv).r;
-	// return metalness;
+	// return texture(metalMap, uv).r;
+	return metalness;
 }
 
 float getRoughness(){
-	return texture(roughMap, uv).r;
-	// return roughness;
+	// return texture(roughMap, uv).r;
+	return roughness;
 }
 
 vec3 calcLight(vec3 lightPos){
@@ -107,7 +107,7 @@ vec3 calcLight(vec3 lightPos){
 
 	vec3 F0 = vec3(0.04);
 	F0      = mix(F0, albedo, metalness);
-	vec3 F  = fresnelSchlick(HdotV, F0);
+	vec3 F  = fresnelSchlick(NdotV, F0, roughness);
 
 	kS = F;
 	kD = 1.0 - kS;
@@ -116,6 +116,7 @@ vec3 calcLight(vec3 lightPos){
 	float NDF = DistributionGGX(NdotH, roughness);       
 	float G   = GeometrySmith(NdotL, NdotV, roughness); 
 
+	// vec3 numerator    = F;
 	vec3 numerator    = NDF * G * F;
 	float denominator = 4.0 * NdotV * NdotL  + 0.0001;
 	vec3 specular     = numerator / denominator;
@@ -146,7 +147,7 @@ void main(void)
 
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
-	fragColor = vec4(final, 1);
+	// fragColor = vec4(final, 1);
 	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);
 	// fragColor = vec4(getMetalness(), 1.0,1.0, 1);
 	// fragColor = vec4(getRoughness(), 1.0,1.0, 1);
