@@ -2,15 +2,15 @@
 
 uniform vec3 eyePos;
 
-uniform samplerCube skybox;
+uniform samplerCube irradianceMap;
 uniform sampler2D albedoMap;
 uniform sampler2D metalMap;
 uniform sampler2D roughMap;
 
 uniform float metalness;
 uniform float roughness;
-vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
-// vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
+// vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
+vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 // vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
 
 in vec4 fragWorldPos;
@@ -24,14 +24,18 @@ float PI = 3.14159265359;
 vec3 I = vec3(23.47, 21.31, 20.79);          // point light intensity
 vec3 Iamb = vec3(0.8, 0.8, 0.8); // ambient light intensity
 vec3 kD = vec3(1, 0.2, 0.2);     // diffuse reflectance coefficient
-vec3 ka = vec3(0.3, 0.3, 0.3);   // ambient reflectance coefficient
+vec3 ka = vec3(0.5, 0.5, 0.5);   // ambient reflectance coefficient
 vec3 kS = vec3(0.8, 0.8, 0.8);   // specular reflectance coefficient
 
 // vec3 lightPos = vec3(5, 5, 5);   // light position in world coordinates
 
 vec3 lightPos[4] = vec3[4](vec3(7.5, 3.0, 7.5), vec3(4.5, 3.0, 7.5), vec3(7.5, 3.0, 4.5), vec3(4.5, 3.0, 4.5));
 
-vec3 fresnelSchlick(float cosTheta, vec3 F0, float roughness)
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+} 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
@@ -107,7 +111,7 @@ vec3 calcLight(vec3 lightPos){
 
 	vec3 F0 = vec3(0.04);
 	F0      = mix(F0, albedo, metalness);
-	vec3 F  = fresnelSchlick(NdotV, F0, roughness);
+	vec3 F  = fresnelSchlick(HdotV, F0);
 
 	kS = F;
 	kD = 1.0 - kS;
@@ -127,6 +131,11 @@ vec3 calcLight(vec3 lightPos){
 	return (kD * albedo / PI + specular) * radiance * NdotL;
 }
 
+vec3 sampleFromCubeMap(samplerCube cubeMap, vec3 dir){
+	vec3 newDir = vec3(dir.x, -dir.y, -dir.z);
+	return texture(cubeMap, newDir).rgb;
+}
+
 void main(void)
 {
 	// I *= 10;
@@ -136,23 +145,34 @@ void main(void)
 		final += calcLight(lightPos[i]);
 	}
 
-	vec3 ambient = vec3(0.03) * getAlbedo() * ka;
-	final+= ambient;
-	
 	vec3 V = normalize(eyePos - vec3(fragWorldPos));
 	vec3 N = normalize(fragWorldNor);
+	float NdotV = max(dot(N, V), 0.0);
+
+	vec3 albedo = getAlbedo();
+	vec3 F0 = vec3(0.04);
+	F0      = mix(F0, albedo, metalness);
+	vec3 kS = fresnelSchlickRoughness(NdotV, F0, roughness); 
+	vec3 kD = 1.0 - kS;
+	vec3 irradiance = sampleFromCubeMap(irradianceMap, N).rgb;
+	vec3 diffuse    = irradiance * albedo;
+	vec3 ambient    = (kD * diffuse) * ka;
+	final+= ambient;
+	
+
 	vec3 reflectDir = reflect(-V, N);
 
 	vec3 skyboxReflectDir = vec3(reflectDir.x, -reflectDir.y, -reflectDir.z);
 
 	// fragColor = vec4(uv, 0, 1);
 	// fragColor = vec4(getAlbedo(), 1);
-	// fragColor = vec4(final, 1);
+	fragColor = vec4(final, 1);
+	// fragColor = vec4(sampleFromCubeMap(irradianceMap, N).rgb, 1);
 	// fragColor = vec4(getMetalness(), getRoughness(),0, 1);
 	// fragColor = vec4(getMetalness(), 1.0,1.0, 1);
 	// fragColor = vec4(getRoughness(), 1.0,1.0, 1);
 	// fragColor = vec4(NdotL, NdotH, NdotV, 1);
 	// fragColor = vec4(F, 1);
 	// fragColor = mix(vec4(final, 1), texture(skybox, skyboxReflectDir), 0.3);
-	fragColor = texture(skybox, skyboxReflectDir);
+	// fragColor = texture(skybox, skyboxReflectDir);
 }

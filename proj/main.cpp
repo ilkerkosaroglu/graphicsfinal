@@ -363,7 +363,7 @@ class Teapot: public RenderObject{
 
 		glActiveTexture(GL_TEXTURE0);
 
-		glUniform1i(program->uniforms["skybox"], 0);
+		glUniform1i(program->uniforms["irradianceMap"], 0);
 		glUniform1i(program->uniforms["albedoMap"], 1);
 		glUniform1i(program->uniforms["metalMap"], 2);
 		glUniform1i(program->uniforms["roughMap"], 3);
@@ -624,7 +624,7 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "irradianceMap"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
@@ -637,18 +637,6 @@ void initShaders(){
 	initShader("wheels", "wv.glsl", "wf.glsl", {});
 	initShader("windows", "windowv.glsl", "windowf.glsl", {"skybox"});
 }
-
-// class VData{
-// 	public:
-// 	Vertex v;
-// 	Normal n;
-// 	Texture t;
-// 	VData(Vertex v, Normal n, Texture t){
-// 		this->v = v;
-// 		this->n = n;
-// 		this->t = t;
-// 	}
-// };
 
 void Geometry::initVBO()
 {
