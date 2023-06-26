@@ -4,58 +4,55 @@ in mat4 inverseViewingMatrix;
 in vec4 pos;
 out vec4 fragColor;
 
-uniform sampler2D skybox;
+uniform samplerCube skybox;
 
 const float PI = 3.14159265359;
 
-const vec2 invAtan = vec2(0.1591, 0.3183);
-vec2 SampleSphericalMap(vec3 v)
-{
-    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
-    uv *= invAtan;
-    uv += 0.5;
-    return uv;
-}
 
-// const float m = 100.0;
-// const float d = 1.0;
+vec3 sampleFromSkybox(vec3 dir)
+{
+	vec3 color = texture(skybox, dir).rgb;
+	// clamp to 15
+	return clamp(color, 0.0, 100000.0);
+}
 
 void main(void)
 {
 	vec4 pos4 = inverseViewingMatrix * pos;
 	vec3 dir = normalize(pos4.xyz/pos4.w);
-	vec3 lambda = vec3(1.0, 1.0, 1.0);
 
 	vec3 irradiance = vec3(0.0);  
-	vec3 normal = dir;
+	vec3 normal = vec3(dir.x, -dir.y, -dir.z);
 	vec3 up    = vec3(0.0, 1.0, 0.0);
 	vec3 right = normalize(cross(up, normal));
 	up         = normalize(cross(normal, right));
 
-	vec2 texCoord = SampleSphericalMap(dir);
-
-	// float sampleDelta = 0.1;
-	float sampleDelta = 0.005;
+	// float sampleDelta = 0.01;
+	float sampleDelta = 0.004;
+	// float sampleDelta = 0.001;
 	float nrSamples = 0.0; 
 	for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
 	{
-		float u = phi / (2.0 * PI);
+		float cosPhi = cos(phi);
+		float sinPhi = sin(phi);
 
 		for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
 		{	
+			float cosTheta = cos(theta);
+			float sinTheta = sin(theta);
+
 			// spherical to cartesian (in tangent space)
-			vec3 tangentSample = vec3(sin(theta) * cos(phi),  sin(theta) * sin(phi), cos(theta));
+			vec3 tangentSample = vec3(sinTheta * cosPhi,  sinTheta * sinPhi, cosTheta);
 			// tangent space to world
 			vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal; 
 
-			irradiance += texture(skybox, SampleSphericalMap(sampleVec)).rgb * cos(theta) * sin(theta);
-			// float v = theta / PI;
+			irradiance += sampleFromSkybox(sampleVec) * cosTheta * sinTheta;
 
-			// irradiance += texture(skybox, vec2(u,v) + texCoord).rgb * cos(theta) * sin(theta);
 			nrSamples++;
 		}
 	}
 	irradiance = PI * irradiance * (1.0 / float(nrSamples));
 
 	fragColor = vec4(irradiance, 1.0);
+	// fragColor = vec4(SampleSphericalMap(dir), 1.0, 1.0);
 }

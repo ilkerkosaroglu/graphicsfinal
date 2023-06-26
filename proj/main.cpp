@@ -66,7 +66,8 @@ float eyeRotX = 0;
 float eyeRotY = 0;
 glm::vec3 eyePos(0, 0, 0); // used with orbital controls, sent to shaders
 glm::vec3 eyePosDiff(0, 5.f, 14.f);
-glm::vec3 objCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
+glm::vec3 objCenter = glm::vec3(6.f, 0.0f, 6.0f);
+// glm::vec3 objCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
 glm::vec3 eyePosActual = objCenter+eyePosDiff; // set this eye position to move, used to calculate rotated eye pos.
 glm::vec3 d = eyePosDiff;
 glm::vec3 prllGround(d.r, 0, d.b);
@@ -84,10 +85,14 @@ GLuint defaultFBO = 0;
 GLuint fbo;
 GLuint diffirrFBO;
 GLuint hdrFBO;
+GLuint cubemapFBO;
 GLuint colorBuffer;
 
 GLuint tonemapProgram;
 
+bool drawnIrr = false;
+vector<string> hdris;
+int hdriIndex = 0;
 struct Vertex
 {
 	Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) { }
@@ -866,6 +871,27 @@ void initEnvMapTexture(){
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, d.textureId, 0);
 }
+void initCubeMapTexture(){
+	textures["skybox6"] = ImgTexture();
+	ImgTexture &t = textures["skybox6"];
+
+	int res = 2048;
+
+	glGenTextures(1, &t.textureId);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	for (int i = 0; i < 6; ++i){
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB16F, res, res, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+	glGenFramebuffers(1, &cubemapFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, cubemapFBO);
+}
 
 void initDiffIrrTexture(){
 	textures["diffirr"] = ImgTexture();
@@ -902,8 +928,9 @@ void readSkybox(string path, string ext = "jpg"){
 	// loadCubemap({"right", "left", "top", "bottom", "back", "front"});
 	loadCubemap({"right", "left", "bottom", "top", "front", "back"});
 }
-void readHDRPanorama(string path){
-	readImage(path.c_str(), "hdrsky");
+void readHDRPanorama(string path, string name){
+	readImage(path.c_str(), name);
+	hdris.push_back(name);
 }
 
 class Rect: public Geometry{
@@ -975,9 +1002,14 @@ class HDRSkyBox: public SkyBox{
 	public:
 	void draw();
 	virtual Program *getProgram();
+	virtual void bindTexture();
 };
 Program* HDRSkyBox::getProgram(){
 	return &programs["hdrsky"];
+}
+void HDRSkyBox::bindTexture(){
+	glBindTexture(GL_TEXTURE_2D, ::textures[hdris[hdriIndex]].textureId);
+	return ;
 }
 void HDRSkyBox::draw(){
 	auto program = getProgram();
@@ -991,7 +1023,7 @@ void HDRSkyBox::draw(){
 	// glUniform1f(program->uniforms["skym"], skym);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, ::textures["hdrsky"].textureId);
+	bindTexture();
 
 	rect.draw();
 	glDepthFunc(GL_LESS);
@@ -1000,14 +1032,20 @@ void HDRSkyBox::draw(){
 class HDRSkyBoxIrr: public HDRSkyBox{
 	public:
 	Program *getProgram();
+	void bindTexture();
 };
 Program* HDRSkyBoxIrr::getProgram(){
 	return &programs["diffirr"];
 }
+void HDRSkyBoxIrr::bindTexture(){
+	glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["skybox6"].textureId);
+}
 
 void SkyBox::init(){
 	readSkybox("hw2_support_files/custom/village/", "png");
-	readHDRPanorama("hw2_support_files/hdr/resting_place_4k.hdr");
+	readHDRPanorama("hw2_support_files/hdr/viale_giuseppe_garibaldi_4k.hdr", "italy");
+	readHDRPanorama("hw2_support_files/hdr/shanghai_bund_4k.hdr", "shanghai");
+	readHDRPanorama("hw2_support_files/hdr/resting_place_4k.hdr", "village");
 	// readSkybox("hw2_support_files/custom/village/", "png");
 	// readSkybox("hw2_support_files/skybox_texture_abandoned_village/", "png");
 	// readSkybox("hw2_support_files/skybox_texture_test/", "jpg");
@@ -1030,6 +1068,7 @@ void init()
 	readImage("hw2_support_files/soft_clay.jpg", "clay");
 
 	initEnvMapTexture();
+	initCubeMapTexture();
 	initDiffIrrTexture();
 
 		for (int i = 0; i < 5; i++)
@@ -1091,17 +1130,19 @@ void RenderObject::drawModel()
 	glDrawElements(GL_TRIANGLES, geometry.faces.size() * 3, GL_UNSIGNED_INT, 0);
 }
 
+vector<glm::mat4> vMs = {
+	// right, left, bottom, top, front, back
+	glm::lookAt(objCenter, objCenter + glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
+	glm::lookAt(objCenter, objCenter + glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
+	glm::lookAt(objCenter, objCenter + glm::vec3(0, -1, 0), glm::vec3(0, 0, -1)),
+	glm::lookAt(objCenter, objCenter + glm::vec3(0, 1, 0), glm::vec3(0, 0, 1)),
+	glm::lookAt(objCenter, objCenter + glm::vec3(0, 0, -1), glm::vec3(0, 1, 0)),
+	glm::lookAt(objCenter, objCenter + glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
+};
+
+auto sqPers = glm::perspective((float)((90.0 / 180.0) * M_PI), 1.0f, 1.0f, 1000.0f);
 
 void drawEnvMap(){
-	vector<glm::mat4> vMs = {
-		// right, left, bottom, top, front, back
-		glm::lookAt(objCenter, objCenter + glm::vec3( 1, 0, 0), glm::vec3(0, 1, 0)),
-		glm::lookAt(objCenter, objCenter + glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0,-1, 0), glm::vec3(0, 0,-1)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 1, 0), glm::vec3(0, 0, 1)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 0,-1), glm::vec3(0, 1, 0)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 0, 1), glm::vec3(0, 1, 0)),
-	};
 	ImgTexture &t = textures["envmap"];
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
 
@@ -1111,7 +1152,7 @@ void drawEnvMap(){
 
 	auto prevVM = viewingMatrix;
 	auto prevPM = projectionMatrix;
-	projectionMatrix = glm::perspective((float)((90.0 / 180.0) * M_PI), 1.0f, 1.0f, 1000.0f);;
+	projectionMatrix = sqPers;
 	for (int i = 0; i < 6; ++i) {
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, 0);
@@ -1135,19 +1176,37 @@ void drawEnvMap(){
 	projectionMatrix = prevPM;
 }
 
-bool drawnIrr = false;
+
+
+void drawSkybox6(){
+	ImgTexture &t = textures["skybox6"];
+	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, diffirrFBO);
+	int res = 2048;
+	glViewport(0, 0, res, res);
+
+	auto prevVM = viewingMatrix;
+	auto prevPM = projectionMatrix;
+	projectionMatrix = sqPers;
+	for (int i = 0; i < 6; ++i) {
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		viewingMatrix = vMs[i];
+
+		skybox.draw();
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
+	glViewport(0, 0, gWidth, gHeight);
+	viewingMatrix = prevVM;
+	projectionMatrix = prevPM;
+}
 
 void drawDiffIrr(){
 	if(drawnIrr) return;
-	vector<glm::mat4> vMs = {
-		// right, left, bottom, top, front, back
-		glm::lookAt(objCenter, objCenter + glm::vec3( 1, 0, 0), glm::vec3(0, 1, 0)),
-		glm::lookAt(objCenter, objCenter + glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0,-1, 0), glm::vec3(0, 0,-1)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 1, 0), glm::vec3(0, 0, 1)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 0,-1), glm::vec3(0, 1, 0)),
-		glm::lookAt(objCenter, objCenter + glm::vec3( 0, 0, 1), glm::vec3(0, 1, 0)),
-	};
+	drawSkybox6();
 	ImgTexture &t = textures["diffirr"];
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
 
@@ -1157,7 +1216,7 @@ void drawDiffIrr(){
 
 	auto prevVM = viewingMatrix;
 	auto prevPM = projectionMatrix;
-	projectionMatrix = glm::perspective((float)((90.0 / 180.0) * M_PI), 1.0f, 1.0f, 1000.0f);;
+	projectionMatrix = sqPers;
 	for (int i = 0; i < 6; ++i) {
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t.textureId, 0);
@@ -1181,7 +1240,8 @@ void display(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 	// draw envmap centering the car (objCenter)
-	drawEnvMap();
+	// drawEnvMap();
+	drawSkybox6();
 	drawDiffIrr();
 
 	skybox.draw();
@@ -1216,10 +1276,14 @@ map<int, bool> pressed;
 // }
 void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods){
 	if (key == GLFW_KEY_Q && action == GLFW_PRESS){
-		eyeRotX = -90;
+		hdriIndex = (hdriIndex + 1) % hdris.size();
+		drawnIrr = false;
+		cout <<"switched panorama to "<< hdris[hdriIndex] << endl;
 	}
 	if (key == GLFW_KEY_E && action == GLFW_PRESS){
-		eyeRotX = 90;
+		hdriIndex = (hdriIndex - 1 + hdris.size()) % hdris.size();
+		drawnIrr = false;
+		cout <<"switched panorama to "<< hdris[hdriIndex] << endl;
 	}
 	if (key == GLFW_KEY_R && action == GLFW_PRESS){
 		eyeRotX = 0;

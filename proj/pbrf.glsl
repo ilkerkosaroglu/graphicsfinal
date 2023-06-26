@@ -141,9 +141,9 @@ void main(void)
 	// I *= 10;
 	vec3 final = vec3(0, 0, 0);
 
-	for(int i = 0; i < 4; i++){
-		final += calcLight(lightPos[i]);
-	}
+	// for(int i = 0; i < 4; i++){
+	// 	final += calcLight(lightPos[i]);
+	// }
 
 	vec3 V = normalize(eyePos - vec3(fragWorldPos));
 	vec3 N = normalize(fragWorldNor);
