@@ -83,6 +83,7 @@ float skyd = 1.0;
 float skym = 100.0;
 float t = 0;
 int renderMode = 0;
+int textureMode = 0;
 
 GLuint defaultFBO = 0;
 GLuint fbo;
@@ -260,6 +261,7 @@ class Teapot: public RenderObject{
 		glUniform1i(program->uniforms["prefilterMap"], 5);
 
 		glUniform1i(program->uniforms["renderMode"], renderMode);
+		glUniform1i(program->uniforms["textureMode"], textureMode);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
@@ -309,6 +311,7 @@ class Armadillo: public RenderObject{
 		glUniform1i(program->uniforms["prefilterMap"], 5);
 
 		glUniform1i(program->uniforms["renderMode"], renderMode);
+		glUniform1i(program->uniforms["textureMode"], textureMode);
 
 		glUniform1f(program->uniforms["metalness"], props["metalness"]);
 		glUniform1f(program->uniforms["roughness"], props["roughness"]);
@@ -675,7 +678,7 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode", "textureMode"});
 	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
@@ -1442,6 +1445,12 @@ void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods){
 	}
 	if (key == GLFW_KEY_B && action == GLFW_PRESS){
 		renderMode = 5;
+	}
+	if (key == GLFW_KEY_R && action == GLFW_PRESS){
+		textureMode = 0;
+	}
+	if (key == GLFW_KEY_F && action == GLFW_PRESS){
+		textureMode = 1;
 	}
 	if(prevRenderMode != renderMode){
 		cout << "switched render mode to " << renderMode <<" which is the "<< renderModeNames[renderMode] <<" mode" << endl;

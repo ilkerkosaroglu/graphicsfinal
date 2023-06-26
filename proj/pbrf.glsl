@@ -14,6 +14,7 @@ uniform float metalness;
 uniform float roughness;
 uniform float t;
 uniform int renderMode;
+uniform int textureMode;
 // vec3 albedo = vec3(1.0, 0, 0); // test color for diffuse
 vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 // vec3 albedo = vec3(metalness, roughness, 1.0); // test color for diffuse
@@ -77,18 +78,24 @@ float GeometrySmith(float NdotL, float NdotV, float roughness)
 }
 
 vec3 getAlbedo(){
-	return texture(albedoMap, uv).rgb;
-	// return albedo;
+	if(textureMode == 1){
+		return texture(albedoMap, uv).rgb;
+	}
+	return albedo;
 }
 
 float getMetalness(){
-	return texture(metalMap, uv).r;
-	// return metalness;
+	if(textureMode == 1){
+		return texture(metalMap, uv).r;
+	}
+	return metalness;
 }
 
 float getRoughness(){
-	return texture(roughMap, uv).r;
-	// return roughness;
+	if(textureMode == 1){
+		return texture(roughMap, uv).r;
+	}
+	return roughness;
 }
 
 vec3 calcLight(vec3 lightPos){
