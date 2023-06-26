@@ -77,18 +77,18 @@ float GeometrySmith(float NdotL, float NdotV, float roughness)
 }
 
 vec3 getAlbedo(){
-	// return texture(albedoMap, uv).rgb;
-	return albedo;
+	return texture(albedoMap, uv).rgb;
+	// return albedo;
 }
 
 float getMetalness(){
-	// return texture(metalMap, uv).r;
-	return metalness;
+	return texture(metalMap, uv).r;
+	// return metalness;
 }
 
 float getRoughness(){
-	// return texture(roughMap, uv).r;
-	return roughness;
+	return texture(roughMap, uv).r;
+	// return roughness;
 }
 
 vec3 calcLight(vec3 lightPos){
@@ -156,6 +156,8 @@ void main(void)
 
 	vec3 albedo = getAlbedo();
 	vec3 F0 = vec3(0.04);
+	float metalness = getMetalness();
+	float roughness = getRoughness();
 	F0      = mix(F0, albedo, metalness);
 	vec3 kS = fresnelSchlickRoughness(NdotV, F0, roughness); 
 	vec3 kD = 1.0 - kS;
