@@ -880,8 +880,8 @@ void initCubeMapTexture(){
 	glGenTextures(1, &t.textureId);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, t.textureId);
 
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	for (int i = 0; i < 6; ++i){
 		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB16F, res, res, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -1198,6 +1198,7 @@ void drawSkybox6(){
 
 		skybox.draw();
 	}
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 	glViewport(0, 0, gWidth, gHeight);
 	viewingMatrix = prevVM;

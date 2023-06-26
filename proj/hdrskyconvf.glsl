@@ -8,14 +8,6 @@ uniform samplerCube skybox;
 
 const float PI = 3.14159265359;
 
-
-vec3 sampleFromSkybox(vec3 dir)
-{
-	vec3 color = texture(skybox, dir).rgb;
-	// clamp to 15
-	return clamp(color, 0.0, 100000.0);
-}
-
 void main(void)
 {
 	vec4 pos4 = inverseViewingMatrix * pos;
@@ -27,8 +19,8 @@ void main(void)
 	vec3 right = normalize(cross(up, normal));
 	up         = normalize(cross(normal, right));
 
-	// float sampleDelta = 0.01;
-	float sampleDelta = 0.004;
+	float sampleDelta = 0.01;
+	// float sampleDelta = 0.005;
 	// float sampleDelta = 0.001;
 	float nrSamples = 0.0; 
 	for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
@@ -46,7 +38,7 @@ void main(void)
 			// tangent space to world
 			vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal; 
 
-			irradiance += sampleFromSkybox(sampleVec) * cosTheta * sinTheta;
+			irradiance += texture(skybox, sampleVec).rgb * cosTheta * sinTheta;
 
 			nrSamples++;
 		}
