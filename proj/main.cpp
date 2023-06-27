@@ -60,7 +60,65 @@ void setViewingMatrix();
 
 glm::mat4 projectionMatrix;
 glm::mat4 viewingMatrix;
-glm::mat4 modelingMatrix;
+class Light{
+	public:
+	glm::vec3 position;
+	glm::vec3 color;
+	glm::mat4 pMatrix;
+	glm::mat4 vMatrix;
+	GLuint depthMapFBO;
+	
+	void update(){
+		vMatrix = glm::lookAt(position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+	}
+
+	void updateBufferSize(){
+		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gWidth, gHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	void genBuffer(){
+		glGenTextures(1, &depthMapFBO);
+		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		updateBufferSize();
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMapFBO, 0);
+	}
+
+	Light(glm::vec3 position, glm::vec3 color) : position(position), color(color) {
+		// ortho since light is directional
+		pMatrix = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 2000.0f);
+		update();
+		glGenFramebuffers(1, &depthMapFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	}
+
+	void render(){
+		shouldUseProgram = false;
+		auto prevVM = viewingMatrix;
+		auto prevPM = projectionMatrix;
+		viewingMatrix = vMatrix;
+		projectionMatrix = pMatrix;
+		// Draw the scene
+		for (auto o : rObjects){
+			o->drawModel();
+		}
+		viewingMatrix = prevVM;
+		projectionMatrix = prevPM;
+		shouldUseProgram = true;
+	}
+};
+vector<Light> lights;
+
+void drawLights(){
+	
+	for(auto light: lights){
+		light.render();
+	}
+}
 
 float eyeRotX = 0;
 float eyeRotY = 0;
@@ -1190,10 +1248,16 @@ HDRSkyBox skybox;
 HDRSkyBoxIrr skyboxIrr;
 HDRSkyBoxPref skyboxPrefilter;
 
+void initLights(){
+	lights.push_back(Light(glm::vec3(50, 50, 50), glm::vec3(1, 1, 1)));
+}
+
 /*** ----------------- INIT ------------------ */
 void init()
 {
 	initShaders();
+
+	initLights();
 
 	readImage("hw2_support_files/ibl_brdf_lut.png", "brdfLUT");
 
@@ -1443,12 +1507,12 @@ void display(){
 
 	skybox.draw();
 
-	shouldUseProgram = false;
+	drawLights();
+
 	// Draw the scene
 	for(auto o: rObjects){
 		o->drawModel();
 	}
-	shouldUseProgram = true;
 
 }
 
@@ -1646,6 +1710,11 @@ void reshape(GLFWwindow *window, int w, int h)
 	ImgTexture &d = textures["depthhdr"];
 	glBindTexture(GL_TEXTURE_2D, d.textureId);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+
+	for(auto l:lights){
+		l.updateBufferSize();
+	}
+
 	// glMatrixMode(GL_PROJECTION);
 	// glLoadIdentity();
 	// glOrtho(-10, 10, -10, 10, -10, 10);
@@ -1796,7 +1865,7 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	glBindTexture(GL_TEXTURE_2D, d.textureId);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, d.textureId, 0);
