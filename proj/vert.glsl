@@ -7,9 +7,11 @@ uniform vec3 eyePos;
 
 layout(location=0) in vec3 inVertex;
 layout(location=1) in vec3 inNormal;
+layout(location=2) in vec2 inUV;
 
 out vec4 fragWorldPos;
 out vec3 fragWorldNor;
+out vec2 fragUV;
 
 void main(void)
 {
@@ -22,5 +24,6 @@ void main(void)
 	fragWorldNor = inverse(transpose(mat3x3(modelingMatrix))) * inNormal;
 
     gl_Position = projectionMatrix * viewingMatrix * modelingMatrix * vec4(inVertex, 1);
+	fragUV = inUV;
 }
 

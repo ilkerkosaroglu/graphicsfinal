@@ -337,13 +337,12 @@ class SkyDome: public RenderObject{
 
 		glActiveTexture(GL_TEXTURE0);
 
-		glEnable(GL_CULL_FACE);
-		// glCullFace(GL_BACK);
-
 		glUniform1i(program->uniforms["skybox"], 0);
 	}
 
 	void drawModel(){
+		glEnable(GL_CULL_FACE);
+		// glCullFace(GL_BACK);
 		RenderObject::drawModel();
 		glDisable(GL_CULL_FACE);
 	}
@@ -352,8 +351,6 @@ class Ground: public RenderObject{
 	public:
 	Ground(){
 		program = &programs["ground"];
-		glUseProgram(program->program);
-		glUniform1i(program->uniforms["groundTexture"], 0);
 	}
 	void calculateModelMatrix(){
 		glm::mat4 matRx = glm::rotate<float>(glm::mat4(1.0), (-90. / 180.) * M_PI, glm::vec3(1.0, 0.0, 0.0));
@@ -725,7 +722,8 @@ void initShaders(){
 	initTonemapProgram();
 
 	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode", "textureMode"});
-	initShader("dome", "domev.glsl", "domef.glsl", {"skybox"});
+	initShader("dome", "vert.glsl", "domef.glsl", {"skybox"});
+	initShader("normals", "vert.glsl", "frag.glsl", {});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("diffirr", "hdrskyv.glsl", "hdrskyconvf.glsl", {"skybox"});
@@ -733,7 +731,7 @@ void initShaders(){
 	initShader("prefilter", "hdrskyv.glsl", "prefilterconv.glsl", {"skybox", "roughness"});
 
 	// initShader("arm", "vert.glsl", "frag.glsl", {"matcap"});
-	initShader("ground", "groundv.glsl", "groundf.glsl", {"groundTexture"});
+	initShader("ground", "vert.glsl", "groundf.glsl", {"groundTexture"});
 	initShader("tesla", "bodyv.glsl", "bodyf.glsl", {"matcap", "skybox"});
 	initShader("wheels", "wv.glsl", "wf.glsl", {});
 	initShader("windows", "windowv.glsl", "windowf.glsl", {"skybox"});
@@ -1222,7 +1220,7 @@ void init()
 
 	ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
 	ParseObj("hw2_support_files/obj/hemisphere.obj", "skydome", make_unique<SkyDome>());
-	ParseObj("hw2_support_files/obj/ground.obj", "ground", make_unique<Ground>());
+	// ParseObj("hw2_support_files/obj/ground.obj", "ground", make_unique<Ground>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_body.obj", "TeslaBody", make_unique<TeslaBody>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_tires.obj", "TeslaWheels", make_unique<TeslaWheels>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_windows.obj", "TeslaWindows", make_unique<TeslaWindows>());
@@ -1251,20 +1249,38 @@ void RenderObject::updateUniforms(){
 	glUniformMatrix4fv(program->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
 	glUniform3fv(program->uniforms["eyePos"], 1, glm::value_ptr(eyePos));
 }
-
+bool shouldUseProgram = true;
 void RenderObject::drawModel()
 {
 	// Set the active program 
-	glUseProgram(program->program);
+	if(shouldUseProgram){
+		glUseProgram(program->program);
 
-	// call general update
-	update();
+		// call general update
+		update();
 
-	// update the model matrix of the object
-	calculateModelMatrix();
+		// update the model matrix of the object
+		calculateModelMatrix();
 
-	// and the values of its uniform variables
-	updateUniforms();
+		// and the values of its uniform variables
+		updateUniforms();
+	}
+	else{
+		auto p = &programs["normals"];
+		glUseProgram(p->program);
+
+		// call general update
+		update();
+
+		// update the model matrix of the object
+		calculateModelMatrix();
+
+		// and the values of its uniform variables
+		glUniformMatrix4fv(p->uniforms["modelingMatrix"], 1, GL_FALSE, glm::value_ptr(geometry.modelMatrix));
+		glUniformMatrix4fv(p->uniforms["projectionMatrix"], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(p->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
+		glUniform3fv(p->uniforms["eyePos"], 1, glm::value_ptr(eyePos));
+	}
 
 	glBindVertexArray(geometry.vao);
 	glBindBuffer(GL_ARRAY_BUFFER, geometry.vertexAttribBuffer);
@@ -1427,10 +1443,12 @@ void display(){
 
 	skybox.draw();
 
+	shouldUseProgram = false;
 	// Draw the scene
 	for(auto o: rObjects){
 		o->drawModel();
 	}
+	shouldUseProgram = true;
 
 }
 
@@ -1438,6 +1456,9 @@ void postProcessing(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(tonemapProgram);
 	glActiveTexture(GL_TEXTURE0);
+	// ImgTexture &d = textures["depthhdr"];
+	// glUniform1i(glGetUniformLocation(tonemapProgram, "scene"), 0);
+	// glBindTexture(GL_TEXTURE_2D, d.textureId);
 	glBindTexture(GL_TEXTURE_2D, colorBuffer);
 	rect.draw();
 }
@@ -1597,11 +1618,11 @@ void setViewingMatrix()
 	glm::vec3 newEyePos = glm::vec3(newEyePos4.x, newEyePos4.y, newEyePos4.z);
 
 	eyePos = newEyePos;
-	dbg(eyeRotY);
-	dbg(eyeRotX);
-	dbg(objCenter.x);
-	dbg(objCenter.y);
-	dbg(objCenter.z);
+	// dbg(eyeRotY);
+	// dbg(eyeRotX);
+	// dbg(objCenter.x);
+	// dbg(objCenter.y);
+	// dbg(objCenter.z);
 
 	// Set the viewing matrix
 	viewingMatrix = glm::lookAt(newEyePos, objCenter, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -1773,6 +1794,9 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	ImgTexture &d = textures["depthhdr"];
 	glGenTextures(1, &d.textureId);
 	glBindTexture(GL_TEXTURE_2D, d.textureId);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, d.textureId, 0);
