@@ -204,6 +204,9 @@ class RenderObject{
 	virtual void updateUniforms();
 };
 
+
+GLuint getShadowRenderer();
+
 vector<shared_ptr<RenderObject>> rObjects;
 bool shouldUseProgram = true;
 
@@ -231,6 +234,11 @@ class Light{
 		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
+		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
 		updateBufferSize();
 
@@ -331,6 +339,9 @@ class Teapot: public RenderObject{
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, ::textures["prefilter"].textureId);
 
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, getShadowRenderer());
+
 		glActiveTexture(GL_TEXTURE0);
 
 		glUniform1i(program->uniforms["brdfLUT"], 0);
@@ -339,6 +350,7 @@ class Teapot: public RenderObject{
 		glUniform1i(program->uniforms["metalMap"], 3);
 		glUniform1i(program->uniforms["roughMap"], 4);
 		glUniform1i(program->uniforms["prefilterMap"], 5);
+		glUniform1i(program->uniforms["shadow"], 6);
 
 		glUniform1i(program->uniforms["renderMode"], renderMode);
 		glUniform1i(program->uniforms["textureMode"], textureMode);
@@ -799,11 +811,11 @@ void initTonemapProgram(){
 void initShaders(){
 	initTonemapProgram();
 
-	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode", "textureMode"});
+	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode", "textureMode", "shadow"});
 	initShader("dome", "vert.glsl", "domef.glsl", {"skybox"});
 	initShader("normals", "vert.glsl", "frag.glsl", {});
 
-	initShader("shadow", "shadowv.glsl", "shadowf.glsl", {"lightVM", "lightPM", "depth", "lightDepth"});
+	initShader("shadow", "shadowv.glsl", "shadowf.glsl", {"lightVM", "lightPM", "depth", "lightDepth", "wwidth", "wheight"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("diffirr", "hdrskyv.glsl", "hdrskyconvf.glsl", {"skybox"});
@@ -1182,14 +1194,17 @@ class ShadowRender{
 
 	void updateBufferSize(){
 		glBindTexture(GL_TEXTURE_2D, cBuffer);
-		dbg(gWidth);
-		dbg(gHeight);
+		// dbg(gWidth);
+		// dbg(gHeight);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, gWidth, gHeight, 0, GL_RGB, GL_FLOAT, NULL);
 	}
 
 	void genBuffer(){
 		glGenTextures(1, &cBuffer);
 		glBindTexture(GL_TEXTURE_2D, cBuffer);
+
+
+		
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -1230,13 +1245,19 @@ class ShadowRender{
 		glBindTexture(GL_TEXTURE_2D, light->depthMapFBO);
 		glUniform1i(p->uniforms["lightDepth"], 1);
 
+
+		glUniform1f(p->uniforms["wwidth"], gWidth);
+		glUniform1f(p->uniforms["wheight"], gHeight);
+
 		rect.draw();
 		// glEnable(GL_DEPTH_TEST);
 		glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 	}
 };
-
 ShadowRender shadowRenderer;
+GLuint getShadowRenderer(){
+	return shadowRenderer.cBuffer;
+}
 
 class SkyBox: public Geometry{
 	public:
@@ -1599,16 +1620,22 @@ void display(){
 	skybox.draw();
 	
 	drawLights();
-	
+
+	shouldUseProgram = false;
 	// Draw the scene
 	for(auto &o: rObjects){
 		o->drawModel();
 	}
+	shouldUseProgram = true;
 
 	// use shadow renderer
 	shadowRenderer.light = &lights[activeLight];
 	shadowRenderer.render();
 
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	for(auto &o: rObjects){
+		o->drawModel();
+	}
 }
 
 void postProcessing(){
@@ -1755,9 +1782,9 @@ void mainLoop(GLFWwindow* window)
 			previousTime = currentTime;
 		}
 
-		lights[1].position.x += sin(0.01 * t) * 1;
+		lights[1].position.x += sin(0.01 * t) * 0.9;
 		lights[1].position.y += sin(0.01 * t + 1) * 0.05;
-		lights[1].position.z += sin(0.01 * t + 2) * 1;
+		lights[1].position.z += sin(0.01 * t + 2) * 0.9;
 		lights[1].update();
 
 

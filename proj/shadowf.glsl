@@ -9,6 +9,9 @@ uniform mat4 projectionMatrix;
 uniform mat4 lightVM;
 uniform mat4 lightPM;
 
+uniform float wwidth;
+uniform float wheight;
+
 uniform sampler2D depth;
 uniform sampler2D lightDepth;
 
@@ -61,6 +64,8 @@ void main(void)
     // fragColor = vec4(depth,  depth, depth, 1.0);
     // fragColor = vec4(lightDepth1,  lightDepth1, lightDepth1, 1.0);
     // fragColor = vec4(lightDepth2,  lightDepth2, lightDepth2, 1.0);
+
+    // without pcf
     if(lightDepth1+ bias < lightUV.z)
     {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -69,6 +74,12 @@ void main(void)
     {
         fragColor = vec4(1.0, 1.0, 1.0, 1.0);
     }
+
+    // with pcf
+    // float shadow = 0.0;
+    // float shadowMapSize = 1024.0;
+
+    // fragColor = vec4(wheight/3000, wwidth/3000, 1.0, 1.0);
 
 	// fragColor = vec4(texture(depth, uv).rrr, 1.0);
     

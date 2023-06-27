@@ -9,6 +9,7 @@ uniform sampler2D albedoMap;
 uniform sampler2D metalMap;
 uniform sampler2D roughMap;
 uniform samplerCube prefilterMap;
+uniform sampler2D shadow;
 
 uniform float metalness;
 uniform float roughness;
@@ -22,6 +23,7 @@ vec3 albedo = vec3(1.0, 1.0, 1.0); // test color for diffuse
 in vec4 fragWorldPos;
 in vec3 fragWorldNor;
 in vec2 uv;
+in vec2 screenPos;
 
 out vec4 fragColor;
 
@@ -166,6 +168,7 @@ void main(void)
 	float metalness = getMetalness();
 	float roughness = getRoughness();
 	F0      = mix(F0, albedo, metalness);
+
 	vec3 kS = fresnelSchlickRoughness(NdotV, F0, roughness); 
 	vec3 kD = 1.0 - kS;
 	kD *= 1.0 - metalness;
@@ -180,12 +183,15 @@ void main(void)
 	vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, roughness)).rg;
 	vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
 
+	float shadowMult = mix(texture(shadow, screenPos).r, 1.0, 0.6);
+	// float shadowMult = texture(shadow, screenPos).r;
+
 	vec3 oldambient    = (kD * diffuse) * ka;
-	vec3 ambient    = (kD * diffuse + specular) * ka;
+	vec3 ambient    = (kD * diffuse + specular * shadowMult * shadowMult) * ka;
 	final+= ambient;
 	
+	// final = vec3(shadowMult);
 
-	
 
 	
 
@@ -225,4 +231,5 @@ void main(void)
 	// fragColor = vec4(F, 1);
 	// fragColor = mix(vec4(final, 1), texture(skybox, skyboxReflectDir), 0.3);
 	// fragColor = texture(skybox, skyboxReflectDir);
+	// fragColor = texture(shadow, uv);
 }
