@@ -52,7 +52,7 @@ namespace std
 }
 using namespace std;
 
-int gWidth, gHeight;
+int gWidth = 1280, gHeight=960;
 
 const int ENV_RES = 1024;
 
@@ -207,6 +207,8 @@ class RenderObject{
 vector<shared_ptr<RenderObject>> rObjects;
 bool shouldUseProgram = true;
 
+GLuint lightFBO;
+bool lightFBOInit = false;
 class Light{
 	public:
 	glm::vec3 position;
@@ -221,7 +223,7 @@ class Light{
 
 	void updateBufferSize(){
 		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gWidth, gHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gWidth*4, gHeight*4, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 	}
 
 	void genBuffer(){
@@ -238,9 +240,16 @@ class Light{
 	Light(glm::vec3 position, glm::vec3 color) : position(position), color(color) {
 		// ortho since light is directional
 		pMatrix = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 2000.0f);
+		// pMatrix = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 2000.0f);
 		update();
-		glGenFramebuffers(1, &depthMapFBO);
-		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+		if(lightFBOInit == false){
+			glGenFramebuffers(1, &lightFBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, lightFBO);
+			glDrawBuffer(GL_NONE);
+			// glReadBuffer(GL_NONE);
+			lightFBOInit = true;
+		}
+		genBuffer();
 	}
 
 	void render(){
@@ -249,10 +258,15 @@ class Light{
 		auto prevPM = projectionMatrix;
 		viewingMatrix = vMatrix;
 		projectionMatrix = pMatrix;
+
+		glViewport(0, 0, gWidth*4, gHeight*4);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMapFBO, 0);
+		glClear(GL_DEPTH_BUFFER_BIT);
 		// Draw the scene
 		for (auto &o : rObjects){
 			o->drawModel();
 		}
+		glViewport(0, 0, gWidth, gHeight);
 		viewingMatrix = prevVM;
 		projectionMatrix = prevPM;
 		shouldUseProgram = true;
@@ -261,10 +275,11 @@ class Light{
 vector<Light> lights;
 
 void drawLights(){
-	
+	glBindFramebuffer(GL_FRAMEBUFFER, lightFBO);
 	for(auto light: lights){
 		light.render();
 	}
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 }
 
 shared_ptr<RenderObject>& getRenderObject(const string& name){
@@ -290,7 +305,7 @@ class Teapot: public RenderObject{
 		props["roughness"] = 1.0 - max((float)0.01, min(z / (float)numz, (float)0.99));
 		position.x = x * 3.0 * sphereSize;
 		position.z = z * 3.0 * sphereSize - 30;
-		position.y = sphereSize - 1.0f;
+		position.y = sphereSize - 1.5f;
 	}
 	void calculateModelMatrix(){
 		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position) * glm::scale(glm::mat4(1.0), glm::vec3(sphereSize, sphereSize, sphereSize));
@@ -788,6 +803,8 @@ void initShaders(){
 	initShader("dome", "vert.glsl", "domef.glsl", {"skybox"});
 	initShader("normals", "vert.glsl", "frag.glsl", {});
 
+	initShader("shadow", "shadowv.glsl", "shadowf.glsl", {"lightVM", "lightPM", "depth", "lightDepth"});
+
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("diffirr", "hdrskyv.glsl", "hdrskyconvf.glsl", {"skybox"});
 	initShader("hdrsky", "hdrskyv.glsl", "hdrskyf.glsl", {"skybox"});
@@ -1155,6 +1172,71 @@ void Rect::init(){
 }
 
 Rect rect;
+GLuint shadowFBO;
+class ShadowRender{
+	public:
+	glm::mat4 pMatrix;
+	glm::mat4 vMatrix;
+	Light *light;
+	GLuint cBuffer;
+
+	void updateBufferSize(){
+		glBindTexture(GL_TEXTURE_2D, cBuffer);
+		dbg(gWidth);
+		dbg(gHeight);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, gWidth, gHeight, 0, GL_RGB, GL_FLOAT, NULL);
+	}
+
+	void genBuffer(){
+		glGenTextures(1, &cBuffer);
+		glBindTexture(GL_TEXTURE_2D, cBuffer);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		updateBufferSize();
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, cBuffer, 0);
+	}
+
+	ShadowRender(){
+	}
+
+	void init(){
+		glGenFramebuffers(1, &shadowFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+		genBuffer();
+	}
+
+	void render(){
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		// glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, cBuffer, 0);
+		// Draw the scene
+		auto p = &programs["shadow"];
+		glUseProgram(p->program);
+		// glDisable(GL_DEPTH_TEST);
+		glUniformMatrix4fv(p->uniforms["projectionMatrix"], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(p->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
+		glUniformMatrix4fv(p->uniforms["lightPM"], 1, GL_FALSE, glm::value_ptr(light->pMatrix));
+		glUniformMatrix4fv(p->uniforms["lightVM"], 1, GL_FALSE, glm::value_ptr(light->vMatrix));
+
+		ImgTexture &d = textures["depthhdr"];
+		
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, d.textureId);
+		glUniform1i(p->uniforms["depth"], 0);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, light->depthMapFBO);
+		glUniform1i(p->uniforms["lightDepth"], 1);
+
+		rect.draw();
+		// glEnable(GL_DEPTH_TEST);
+		glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
+	}
+};
+
+ShadowRender shadowRenderer;
 
 class SkyBox: public Geometry{
 	public:
@@ -1255,6 +1337,7 @@ HDRSkyBoxPref skyboxPrefilter;
 
 void initLights(){
 	lights.push_back(Light(glm::vec3(50, 50, 50), glm::vec3(1, 1, 1)));
+	lights.push_back(Light(glm::vec3(-50, 50, 50), glm::vec3(1, 1, 1)));
 }
 
 /*** ----------------- INIT ------------------ */
@@ -1274,6 +1357,8 @@ void init()
 	readImage("hw2_support_files/pbr/rust/r.png", "rustR");
 
 	readImage("hw2_support_files/soft_clay.jpg", "clay");
+
+	shadowRenderer.init();
 
 	initEnvMapTexture();
 	initCubeMapTexture();
@@ -1500,24 +1585,29 @@ void drawPBRTextures(){
 	drawnIrr = true;
 }
 
+int activeLight = 0;
+
 void display(){
 	glClearColor(0, 0, 0, 1);
 	glClearDepth(1.0f);
 	glClearStencil(0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-	// draw envmap centering the car (objCenter)
-	// drawEnvMap();
+	// Construct PBR precomputed textures, runs when a new skybox is loaded
 	drawPBRTextures();
 
 	skybox.draw();
-
+	
 	drawLights();
-
+	
 	// Draw the scene
 	for(auto &o: rObjects){
 		o->drawModel();
 	}
+
+	// use shadow renderer
+	shadowRenderer.light = &lights[activeLight];
+	shadowRenderer.render();
 
 }
 
@@ -1525,11 +1615,17 @@ void postProcessing(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(tonemapProgram);
 	glUniform1i(glGetUniformLocation(tonemapProgram, "scene"), 0);
+	glUniform1i(glGetUniformLocation(tonemapProgram, "shadow"), 1);
+
 	glActiveTexture(GL_TEXTURE0);
 	// ImgTexture &d = textures["depthhdr"];
 	// glBindTexture(GL_TEXTURE_2D, d.textureId);
-	glBindTexture(GL_TEXTURE_2D, lights[0].depthMapFBO);
-	// glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	// glBindTexture(GL_TEXTURE_2D, lights[activeLight].depthMapFBO);
+
+	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	glActiveTexture(GL_TEXTURE1);
+
+	glBindTexture(GL_TEXTURE_2D, shadowRenderer.cBuffer);
 	rect.draw();
 }
 
@@ -1590,6 +1686,9 @@ void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods){
 	if (key == GLFW_KEY_F && action == GLFW_PRESS){
 		textureMode = 1;
 	}
+	if (key == GLFW_KEY_Z && action == GLFW_PRESS){
+		activeLight = (activeLight + 1) % lights.size();
+	}
 	if(prevRenderMode != renderMode){
 		cout << "switched render mode to " << renderMode <<" which is the "<< renderModeNames[renderMode] <<" mode" << endl;
 	}
@@ -1609,19 +1708,19 @@ bool shouldDoAction(int key){
 void calcInteractions(){
 	if (shouldDoAction(GLFW_KEY_W))
 	{
-		getRenderObject("TeslaBody")->props["speed"] += 0.015;
+		getRenderObject("TeslaBody")->props["speed"] += 0.03;
 	}
 	if (shouldDoAction(GLFW_KEY_S))
 	{
-		getRenderObject("TeslaBody")->props["speed"] -= 0.015;
+		getRenderObject("TeslaBody")->props["speed"] -= 0.03;
 	}
 	if (shouldDoAction(GLFW_KEY_A))
 	{
-		getRenderObject("TeslaBody")->props["speedright"] -= 0.015;
+		getRenderObject("TeslaBody")->props["speedright"] -= 0.03;
 	}
 	if (shouldDoAction(GLFW_KEY_D))
 	{
-		getRenderObject("TeslaBody")->props["speedright"] += 0.015;
+		getRenderObject("TeslaBody")->props["speedright"] += 0.03;
 	}
 	if (shouldDoAction(GLFW_KEY_X))
 	{
@@ -1655,6 +1754,13 @@ void mainLoop(GLFWwindow* window)
 			frameCount = 0;
 			previousTime = currentTime;
 		}
+
+		lights[1].position.x += sin(0.01 * t) * 1;
+		lights[1].position.y += sin(0.01 * t + 1) * 0.05;
+		lights[1].position.z += sin(0.01 * t + 2) * 1;
+		lights[1].update();
+
+
 		calcInteractions();
 		glBindFramebuffer(GL_FRAMEBUFFER, defaultFBO);
 		display();
@@ -1720,11 +1826,8 @@ void reshape(GLFWwindow *window, int w, int h)
 	for(auto l:lights){
 		l.updateBufferSize();
 	}
+	shadowRenderer.updateBufferSize();
 
-	// glMatrixMode(GL_PROJECTION);
-	// glLoadIdentity();
-	// glOrtho(-10, 10, -10, 10, -10, 10);
-	// gluPerspective(45, 1, 1, 100);
 
 	// Use perspective projection
 
@@ -1821,7 +1924,7 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
 	//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
 	//glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-	int width = 1280, height = 960;
+	int width = gWidth, height = gHeight;
 	window = glfwCreateWindow(width, height, "Simple Example", NULL, NULL);
 
 	if (!window)
