@@ -7,6 +7,8 @@ cd proj
 make && ./main
 ```
 
+![shanghaishadow](https://github.com/ilkerkosaroglu/graphicsfinal/assets/31799528/04a8d71d-71cd-4f8c-a83a-898265bf2b21)
+
 
 We have some controls enables, here's a list of them:
 
