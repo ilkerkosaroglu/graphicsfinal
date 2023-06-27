@@ -66,13 +66,13 @@ float eyeRotX = 0;
 float eyeRotY = 0;
 glm::vec3 eyePos(0, 0, 0); // used with orbital controls, sent to shaders
 glm::vec3 eyePosDiff(0, 5.f, 14.f);
-glm::vec3 objCenter = glm::vec3(6.f, 0.0f, 6.0f);
+glm::vec3 objCenter = glm::vec3(7.25f, 20.75f, 5.0f);
 // glm::vec3 objCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
 glm::vec3 eyePosActual = objCenter+eyePosDiff; // set this eye position to move, used to calculate rotated eye pos.
 glm::vec3 d = eyePosDiff;
 glm::vec3 prllGround(d.r, 0, d.b);
 float eyeRotYInitial = (acos(dot(normalize(d), normalize(prllGround)))*180.0)/M_PI;
-glm::vec3 armCenter = glm::vec3(-0.1f, 0.0f, -7.0f);
+glm::vec3 armCenter = glm::vec3(10.0f, 32/5.f, -40.0f);
 // glm::vec3 armCenter = glm::vec3(-0.1f, 1.06f, -7.0f);
 
 glm::vec3 lookingDir = glm::vec3(0, 0, -1);
@@ -213,6 +213,7 @@ shared_ptr<RenderObject>& getRenderObject(const string& name){
 	throw "RenderObject not found";
 }
 
+const float sphereSize = 3.0f;
 class Teapot: public RenderObject{
 	public:
 	Teapot(){
@@ -222,13 +223,14 @@ class Teapot: public RenderObject{
 	}
 	Teapot(int x, int z, int numx, int numz){
 		program = &programs["teapot"];
-		props["metalness"] = max((float)0.01, min(x / (float)numx, (float)0.99));
-		props["roughness"] = max((float)0.01, min(z / (float)numz, (float)0.99));
-		position.x = x*3.0;
-		position.z = z*3.0;
+		props["metalness"] = 1.0 - max((float)0.01, min(x / (float)numx, (float)0.99));
+		props["roughness"] = 1.0 - max((float)0.01, min(z / (float)numz, (float)0.99));
+		position.x = x * 3.0 * sphereSize;
+		position.z = z * 3.0 * sphereSize - 30;
+		position.y = sphereSize - 1.0f;
 	}
 	void calculateModelMatrix(){
-		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position);
+		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position) * glm::scale(glm::mat4(1.0), glm::vec3(sphereSize, sphereSize, sphereSize));
 	}
 
 	void updateUniforms(){
@@ -278,8 +280,8 @@ class Armadillo: public RenderObject{
 	void calculateModelMatrix(){
 		glm::mat4 matRx = glm::rotate<float>(glm::mat4(1.0), (0. / 180.) * M_PI, glm::vec3(1.0, 0.0, 0.0));
 		glm::mat4 matRy = glm::rotate<float>(glm::mat4(1.0), (-180. / 180.) * M_PI, glm::vec3(0.0, 1.0, 0.0));
-		glm::mat4 scale = glm::scale(glm::mat4(1.0), glm::vec3(5.0, 5.0, 5.0));
-		this->geometry.modelMatrix = scale * glm::translate(glm::mat4(1.0), this->position) * matRy * matRx;
+		glm::mat4 scale = glm::scale(glm::mat4(1.0), glm::vec3(8.0, 8.0, 8.0));
+		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position) * scale * matRy * matRx;
 	}
 	void updateUniforms(){
 		RenderObject::updateUniforms();
@@ -318,6 +320,34 @@ class Armadillo: public RenderObject{
 		glUniform1f(program->uniforms["t"], t);
 	}
 };
+class SkyDome: public RenderObject{
+	public:
+	SkyDome(){
+		program = &programs["dome"];
+		position = glm::vec3(0.0, -1.5, 0.0);
+	}
+	void calculateModelMatrix(){
+		glm::mat4 scale = glm::scale(glm::mat4(1.0), glm::vec3(skym, skym, skym));
+		this->geometry.modelMatrix = glm::translate(glm::mat4(1.0), this->position) * scale;
+	}
+	void updateUniforms(){
+		RenderObject::updateUniforms();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, ::textures[hdris[hdriIndex]].textureId);
+
+		glActiveTexture(GL_TEXTURE0);
+
+		glEnable(GL_CULL_FACE);
+		// glCullFace(GL_BACK);
+
+		glUniform1i(program->uniforms["skybox"], 0);
+	}
+
+	void drawModel(){
+		RenderObject::drawModel();
+		glDisable(GL_CULL_FACE);
+	}
+};
 class Ground: public RenderObject{
 	public:
 	Ground(){
@@ -344,14 +374,19 @@ class TeslaBody: public RenderObject{
 		program = &programs["tesla"];
 		props["speed"] = 0.0;
 		props["angle"] = 180.0;
+		props["speedright"] = 0.0;
 		// position = objCenter;
 	}
 	void update(){
 		float speed = props["speed"];
-		float angle = props["angle"];
+		float speedright = props["speedright"];
 		objCenter.x += speed * lookingDir.x;
 		objCenter.y += speed * lookingDir.y;
 		objCenter.z += speed * lookingDir.z;
+		glm::vec3 right = glm::cross(lookingDir, glm::vec3(0.0, 1.0, 0.0));
+		objCenter.x += speedright * right.x;
+		objCenter.y += speedright * right.y;
+		objCenter.z += speedright * right.z;
 		const float friction = 0.005;
 		if(speed>0){
 			props["speed"] -= friction;
@@ -363,6 +398,17 @@ class TeslaBody: public RenderObject{
 		}
 		if(abs(speed) > 1.0){
 			props["speed"] = (abs(speed)/speed)*1.0;
+		}
+		if(speedright>0){
+			props["speedright"] -= friction;
+		}else{
+			props["speedright"] += friction;
+		}
+		if(abs(speedright) < 0.01){
+			props["speedright"] = 0.0;
+		}
+		if(abs(speedright) > 1.0){
+			props["speedright"] = (abs(speedright)/speedright)*1.0;
 		}
 		position = objCenter;
 		eyePosActual = objCenter + eyePosDiff;
@@ -679,7 +725,7 @@ void initShaders(){
 	initTonemapProgram();
 
 	initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "t", "brdfLUT", "albedoMap", "metalMap", "roughMap", "irradianceMap", "prefilterMap", "renderMode", "textureMode"});
-	// initShader("teapot", "pbrv.glsl", "pbrf.glsl", {"skybox", "metalness", "roughness", "albedoMap", "metalMap", "roughMap", "normalMap", "aoMap", "irradianceMap", "prefilterMap", "brdfLUT"});
+	initShader("dome", "domev.glsl", "domef.glsl", {"skybox"});
 
 	// initShader("skybox", "skyv.glsl", "skyf.glsl", {"skybox"});
 	initShader("diffirr", "hdrskyv.glsl", "hdrskyconvf.glsl", {"skybox"});
@@ -721,7 +767,7 @@ void Geometry::initVBO()
 	// dbg(tSize);
 	const int fSize = this->faces.size();
 	// dbg(fSize);
-	assert(vSize == nSize);
+	// assert(vSize == nSize);
 
 	vector<array<GLuint,3>> vData;
 	vector<GLuint> fIndices;
@@ -1175,6 +1221,7 @@ void init()
 	}
 
 	ParseObj("hw2_support_files/obj/armadillo.obj", "armadillo", make_unique<Armadillo>());
+	ParseObj("hw2_support_files/obj/hemisphere.obj", "skydome", make_unique<SkyDome>());
 	ParseObj("hw2_support_files/obj/ground.obj", "ground", make_unique<Ground>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_body.obj", "TeslaBody", make_unique<TeslaBody>());
 	ParseObj("hw2_support_files/obj/cybertruck/cybertruck_tires.obj", "TeslaWheels", make_unique<TeslaWheels>());
@@ -1479,16 +1526,26 @@ void calcInteractions(){
 	}
 	if (shouldDoAction(GLFW_KEY_A))
 	{
-		getRenderObject("TeslaBody")->props["angle"] -= 2.0;
+		getRenderObject("TeslaBody")->props["speedright"] -= 0.015;
 	}
 	if (shouldDoAction(GLFW_KEY_D))
 	{
-		getRenderObject("TeslaBody")->props["angle"] += 2.0;
+		getRenderObject("TeslaBody")->props["speedright"] += 0.015;
 	}
-	float angle = getRenderObject("TeslaBody")->props["angle"];
-	eyeRotX += 180 - angle;
+	if (shouldDoAction(GLFW_KEY_X))
+	{
+		skym -= 1;
+		cout << "hemisphere radius: " << skym << endl;
+	}
+	if (shouldDoAction(GLFW_KEY_C))
+	{
+		skym += 1;
+		cout << "hemisphere radius: " << skym << endl;
+	}
+	// float angle = getRenderObject("TeslaBody")->props["angle"];
+	// eyeRotX += 180 - angle;
 	setViewingMatrix();
-	eyeRotX -= 180 - angle;
+	// eyeRotX -= 180 - angle;
 }
 
 void mainLoop(GLFWwindow* window)
@@ -1540,6 +1597,11 @@ void setViewingMatrix()
 	glm::vec3 newEyePos = glm::vec3(newEyePos4.x, newEyePos4.y, newEyePos4.z);
 
 	eyePos = newEyePos;
+	dbg(eyeRotY);
+	dbg(eyeRotX);
+	dbg(objCenter.x);
+	dbg(objCenter.y);
+	dbg(objCenter.z);
 
 	// Set the viewing matrix
 	viewingMatrix = glm::lookAt(newEyePos, objCenter, glm::vec3(0.0f, 1.0f, 0.0f));
