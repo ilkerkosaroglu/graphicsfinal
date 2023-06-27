@@ -66,20 +66,29 @@ void main(void)
     // fragColor = vec4(lightDepth2,  lightDepth2, lightDepth2, 1.0);
 
     // without pcf
-    if(lightDepth1+ bias < lightUV.z)
-    {
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    }
-    else
-    {
-        fragColor = vec4(1.0, 1.0, 1.0, 1.0);
-    }
+    // if(lightDepth1+ bias < lightUV.z)
+    // {
+    //     fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    // }
+    // else
+    // {
+    //     fragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    // }
 
     // with pcf
-    // float shadow = 0.0;
-    // float shadowMapSize = 1024.0;
+    float shadow = 0.0;
+    vec2 offsetMult = vec2(1.0/wwidth, 1.0/wheight) * 0.5;
+    for (int x=-1; x<=1; x++){
+        for (int y=-1; y<=1; y++){
+            // float pcfDepth = texture(lightDepth, lightUV.xy).r;
+            float pcfDepth = texture(lightDepth, lightUV.xy + vec2(x,y)*offsetMult).r;
+            shadow += pcfDepth + bias < lightUV.z ? 0.0 : 1.0;
+        }
+    }
 
-    // fragColor = vec4(wheight/3000, wwidth/3000, 1.0, 1.0);
+    shadow /= 9.0;
+
+    fragColor = vec4(shadow, shadow, shadow, 1.0);
 
 	// fragColor = vec4(texture(depth, uv).rrr, 1.0);
     
