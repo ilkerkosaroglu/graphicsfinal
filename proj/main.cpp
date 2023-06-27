@@ -58,67 +58,10 @@ const int ENV_RES = 1024;
 
 void setViewingMatrix();
 
+
 glm::mat4 projectionMatrix;
 glm::mat4 viewingMatrix;
-class Light{
-	public:
-	glm::vec3 position;
-	glm::vec3 color;
-	glm::mat4 pMatrix;
-	glm::mat4 vMatrix;
-	GLuint depthMapFBO;
-	
-	void update(){
-		vMatrix = glm::lookAt(position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-	}
 
-	void updateBufferSize(){
-		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gWidth, gHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-	}
-
-	void genBuffer(){
-		glGenTextures(1, &depthMapFBO);
-		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		updateBufferSize();
-
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMapFBO, 0);
-	}
-
-	Light(glm::vec3 position, glm::vec3 color) : position(position), color(color) {
-		// ortho since light is directional
-		pMatrix = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 2000.0f);
-		update();
-		glGenFramebuffers(1, &depthMapFBO);
-		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-	}
-
-	void render(){
-		shouldUseProgram = false;
-		auto prevVM = viewingMatrix;
-		auto prevPM = projectionMatrix;
-		viewingMatrix = vMatrix;
-		projectionMatrix = pMatrix;
-		// Draw the scene
-		for (auto o : rObjects){
-			o->drawModel();
-		}
-		viewingMatrix = prevVM;
-		projectionMatrix = prevPM;
-		shouldUseProgram = true;
-	}
-};
-vector<Light> lights;
-
-void drawLights(){
-	
-	for(auto light: lights){
-		light.render();
-	}
-}
 
 float eyeRotX = 0;
 float eyeRotY = 0;
@@ -261,7 +204,69 @@ class RenderObject{
 	virtual void updateUniforms();
 };
 
-vector< shared_ptr < RenderObject > > rObjects;
+vector<shared_ptr<RenderObject>> rObjects;
+bool shouldUseProgram = true;
+
+class Light{
+	public:
+	glm::vec3 position;
+	glm::vec3 color;
+	glm::mat4 pMatrix;
+	glm::mat4 vMatrix;
+	GLuint depthMapFBO;
+	
+	void update(){
+		vMatrix = glm::lookAt(position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+	}
+
+	void updateBufferSize(){
+		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gWidth, gHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	void genBuffer(){
+		glGenTextures(1, &depthMapFBO);
+		glBindTexture(GL_TEXTURE_2D, depthMapFBO);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		updateBufferSize();
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMapFBO, 0);
+	}
+
+	Light(glm::vec3 position, glm::vec3 color) : position(position), color(color) {
+		// ortho since light is directional
+		pMatrix = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, 0.1f, 2000.0f);
+		update();
+		glGenFramebuffers(1, &depthMapFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	}
+
+	void render(){
+		shouldUseProgram = false;
+		auto prevVM = viewingMatrix;
+		auto prevPM = projectionMatrix;
+		viewingMatrix = vMatrix;
+		projectionMatrix = pMatrix;
+		// Draw the scene
+		for (auto &o : rObjects){
+			o->drawModel();
+		}
+		viewingMatrix = prevVM;
+		projectionMatrix = prevPM;
+		shouldUseProgram = true;
+	}
+};
+vector<Light> lights;
+
+void drawLights(){
+	
+	for(auto light: lights){
+		light.render();
+	}
+}
+
 shared_ptr<RenderObject>& getRenderObject(const string& name){
 	for(auto& obj: rObjects){
 		if(obj->name == name){
@@ -1313,7 +1318,7 @@ void RenderObject::updateUniforms(){
 	glUniformMatrix4fv(program->uniforms["viewingMatrix"], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
 	glUniform3fv(program->uniforms["eyePos"], 1, glm::value_ptr(eyePos));
 }
-bool shouldUseProgram = true;
+
 void RenderObject::drawModel()
 {
 	// Set the active program 
@@ -1384,7 +1389,7 @@ void drawEnvMap(){
 		viewingMatrix = vMs[i];
 
 		skybox.draw();
-		for(auto o: rObjects){
+		for(auto &o: rObjects){
 			if (o->name.compare("TeslaBody")!=0 && o->name.compare("TeslaWheels")!=0 && o->name.compare("TeslaWindows")!=0){
 
 				o->drawModel();
@@ -1510,7 +1515,7 @@ void display(){
 	drawLights();
 
 	// Draw the scene
-	for(auto o: rObjects){
+	for(auto &o: rObjects){
 		o->drawModel();
 	}
 
@@ -1519,11 +1524,12 @@ void display(){
 void postProcessing(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(tonemapProgram);
+	glUniform1i(glGetUniformLocation(tonemapProgram, "scene"), 0);
 	glActiveTexture(GL_TEXTURE0);
 	// ImgTexture &d = textures["depthhdr"];
-	// glUniform1i(glGetUniformLocation(tonemapProgram, "scene"), 0);
 	// glBindTexture(GL_TEXTURE_2D, d.textureId);
-	glBindTexture(GL_TEXTURE_2D, colorBuffer);
+	glBindTexture(GL_TEXTURE_2D, lights[0].depthMapFBO);
+	// glBindTexture(GL_TEXTURE_2D, colorBuffer);
 	rect.draw();
 }
 
