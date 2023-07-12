@@ -1,5 +1,7 @@
 # Final Term Project of CENG469 2022-2023 - Scene Generation with an HDR Envmap, Image Based Lighting and Shadows
 
+https://ilkerkosaroglu.blogspot.com/2023/06/computer-graphics-ii-hdr-physically.html
+
 You can run this project after cloning it using:
 
 ```
